@@ -1,7 +1,7 @@
 package device
 
 import (
-	"simulated-annealing/utils"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
 )
 
 type DeviceId int32

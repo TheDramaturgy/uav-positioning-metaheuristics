@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/device"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/gateway"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/problem"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/solver"
 	"os"
-	"simulated-annealing/device"
-	"simulated-annealing/gateway"
-	"simulated-annealing/problem"
-	"simulated-annealing/solver"
 	"time"
 )
 
@@ -39,14 +39,14 @@ func main() {
 	candidatePosList := gateway.ReadCandidatePositionList(gatewayPositionFile)
 	fmt.Printf("Successfully loaded %d candidate positions\n", candidatePosList.Count())
 
-	gateway := &gateway.Gateway{}
-	gateway.SetSensitivity(map[int16]float32{7: -130.0, 8: -132.5, 9: -135.0, 10: -137.5, 11: -140.0, 12: -142.5})
+	gw := &gateway.Gateway{}
+	gw.SetSensitivity(map[int16]float32{7: -130.0, 8: -132.5, 9: -135.0, 10: -137.5, 11: -140.0, 12: -142.5})
 	for slice := range deviceList.Slices() {
-		gateway.AddSlice(int32(slice), 125000.0, 15197.75390625)
+		gw.AddSlice(int32(slice), 125000.0, 15197.75390625)
 	}
 
 	// ---------- Create problem instance
-	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.05, deviceList, candidatePosList, gateway)
+	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.05, deviceList, candidatePosList, gw)
 	if err != nil {
 		panic(err)
 	}
@@ -86,8 +86,14 @@ func ExportResults(s *solver.Solver, instance *problem.UAVProblem, logFile, plac
 		panic(err)
 	}
 
-	file.Sync()
-	file.Close()
+	err = file.Sync()
+	if err != nil {
+		panic(err)
+	}
+	err = file.Close()
+	if err != nil {
+		panic(err)
+	}
 
 	// Gateway Placement
 	file, err = os.Create(placementFile)
@@ -100,8 +106,14 @@ func ExportResults(s *solver.Solver, instance *problem.UAVProblem, logFile, plac
 		panic(err)
 	}
 
-	file.Sync()
-	file.Close()
+	err = file.Sync()
+	if err != nil {
+		panic(err)
+	}
+	err = file.Close()
+	if err != nil {
+		panic(err)
+	}
 
 	// Config Placement
 	file, err = os.Create(configurationFile)
@@ -114,6 +126,12 @@ func ExportResults(s *solver.Solver, instance *problem.UAVProblem, logFile, plac
 		panic(err)
 	}
 
-	file.Sync()
-	file.Close()
+	err = file.Sync()
+	if err != nil {
+		panic(err)
+	}
+	err = file.Close()
+	if err != nil {
+		panic(err)
+	}
 }

@@ -2,10 +2,10 @@ package problem
 
 import (
 	"fmt"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/device"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/solver"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
 	"math/rand"
-	"simulated-annealing/device"
-	"simulated-annealing/solver"
-	"simulated-annealing/utils"
 	"slices"
 )
 

@@ -2,9 +2,9 @@ package device
 
 import (
 	"encoding/csv"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
 	"math/rand"
 	"os"
-	"simulated-annealing/utils"
 	"strconv"
 	"strings"
 )

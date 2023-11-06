@@ -2,8 +2,8 @@ package solver
 
 import (
 	"fmt"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
 	"math"
-	"simulated-annealing/utils"
 	"strings"
 	"time"
 )

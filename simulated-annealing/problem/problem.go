@@ -3,22 +3,22 @@ package problem
 import (
 	"errors"
 	"fmt"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/device"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/gateway"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/solver"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
 	"math"
 	"math/rand"
-	"simulated-annealing/device"
-	"simulated-annealing/gateway"
-	"simulated-annealing/solver"
-	"simulated-annealing/utils"
 	"slices"
 )
 
 const (
-	// Path Loss
+	// Path Loss Parameters
 	ReferencePrx        float32 = 10.0
 	ReferenceDistance   float32 = 1.0
 	AttenuationExponent float32 = 3.76
 
-	// Quality of Service
+	// Quality of Service Parameters
 	CondingRate float32 = 4.0 / 5.0
 	PacketSize  float32 = 400
 	MaxDatarate float32 = 6835.94

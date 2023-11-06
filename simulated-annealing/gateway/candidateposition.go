@@ -2,8 +2,8 @@ package gateway
 
 import (
 	"encoding/csv"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
 	"os"
-	"simulated-annealing/utils"
 	"strconv"
 	"strings"
 )
