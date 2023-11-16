@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/device"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/gateway"
-	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/solver"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
 	"math"
 	"math/rand"
@@ -26,6 +25,13 @@ const (
 	MaxDelay    float32 = PacketSize / MinDatarate
 	QoSBound    float32 = 0.9
 )
+
+type Problem interface {
+	GetCurrentSolution() Solution
+	SetCurrentSolution(Solution)
+	GetBestSolution() Solution
+	SetBestSolution(Solution)
+}
 
 type deviceGatewayAssociation struct {
 	deviceId device.DeviceId
@@ -101,7 +107,7 @@ func (problem *UAVProblem) ConstructInitialSolution() error {
 	return nil
 }
 
-func (problem *UAVProblem) GetCurrentSolution() solver.Solution {
+func (problem *UAVProblem) GetCurrentSolution() Solution {
 	if problem.currentSolution == nil {
 		err := problem.ConstructInitialSolution()
 		if err != nil {
@@ -116,15 +122,15 @@ func (problem *UAVProblem) GetChanceOfChangingUAV() float64 {
 	return problem.changeUav
 }
 
-func (problem *UAVProblem) SetBestSolution(sol solver.Solution) {
-	problem.bestSolution = sol.(*UAVSolution).copy()
+func (problem *UAVProblem) SetBestSolution(sol Solution) {
+	problem.bestSolution = sol.(*UAVSolution)
 }
 
-func (problem *UAVProblem) SetCurrentSolution(sol solver.Solution) {
-	problem.currentSolution = sol.(*UAVSolution).copy()
+func (problem *UAVProblem) SetCurrentSolution(sol Solution) {
+	problem.currentSolution = sol.(*UAVSolution)
 }
 
-func (problem *UAVProblem) GetBestSolution() solver.Solution {
+func (problem *UAVProblem) GetBestSolution() Solution {
 	return problem.bestSolution
 }
 

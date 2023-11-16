@@ -3,17 +3,38 @@ package problem
 import (
 	"fmt"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/device"
-	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/solver"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
+	"maps"
 	"math/rand"
 	"slices"
 )
 
 const (
-	debug bool = false
+	debug           bool = false
+	DirectionUAV    int  = 1
+	DirectionConfig int  = 2
 )
 
 var globalIdx int64 = 0
+
+type Solution interface {
+	GetCost() float64
+	GetCostA() float64
+	GetCostB() float64
+	GetNeighbourSA(minDistance, maxDistance int) Solution
+	GetNeighbourList(size int) []Solution
+	GetGeneratingMove() Move
+	String() string
+}
+
+type Move struct {
+	DeviceId   device.DeviceId
+	Direction  int
+	PrevConfig int32
+	PrevUAV    int32
+	NewConfig  int32
+	NewUAV     int32
+}
 
 type uavSliceKey struct {
 	uavId int32
@@ -22,12 +43,22 @@ type uavSliceKey struct {
 
 type UAVSolution struct {
 	id                int64
-	deviceAssociation map[device.DeviceId]*uavConfigurationAssociation
+	deviceAssociation map[device.DeviceId]uavConfigurationAssociation
 	uavSliceDevices   map[uavSliceKey][]device.DeviceId
 	uavDevices        map[int32][]device.DeviceId
 	uavDatarate       map[uavSliceKey]float32 // uavDatarate[gwID][sliceID] -> datarate
 	deployedUavs      []int32
+	generatingMove    Move
+	cost              float64
 	problem           *UAVProblem
+}
+
+func (sol *UAVSolution) String() string {
+	return fmt.Sprintf("id: %d, cost: %f, move: %+v", sol.id, sol.GetCost(), sol.generatingMove)
+}
+
+func (sol *UAVSolution) GetGeneratingMove() Move {
+	return sol.generatingMove
 }
 
 func (sol *UAVSolution) deployUav(uavId int32) {
@@ -102,37 +133,39 @@ func (sol *UAVSolution) GetAssignedConfigId(deviceId device.DeviceId) int32 {
 
 func (sol *UAVSolution) Print() {
 	numDevices := len(sol.deviceAssociation)
-	for key := 0; key < int(numDevices); key++ {
+	for key := 0; key < numDevices; key++ {
 		fmt.Printf("Device %d -> %+v\n", key, sol.deviceAssociation[device.DeviceId(key)])
 	}
 }
 
 func (sol *UAVSolution) copy() *UAVSolution {
-	copyDeviceAssociation := make(map[device.DeviceId]*uavConfigurationAssociation)
 	copyUavSliceDevices := make(map[uavSliceKey][]device.DeviceId)
 	copyUavDevices := make(map[int32][]device.DeviceId)
-	copyUavDatarate := make(map[uavSliceKey]float32)
+	//copyUavDatarate := make(map[uavSliceKey]float32)
 
-	for key, value := range sol.deviceAssociation {
-		copyDeviceAssociation[key] = &uavConfigurationAssociation{value.uavId, value.configId}
-	}
+	copyDeviceAssociation := maps.Clone(sol.deviceAssociation)
+	copyUavDatarate := maps.Clone(sol.uavDatarate)
 
+	//for key, value := range sol.deviceAssociation {
+	//	copyDeviceAssociation[key] = &uavConfigurationAssociation{value.uavId, value.configId}
+	//}
+	//
 	for key, value := range sol.uavSliceDevices {
-		copyUavSliceDevices[key] = make([]device.DeviceId, len(value))
-		copy(copyUavSliceDevices[key], value)
+		copyUavSliceDevices[key] = slices.Clone(value)
 	}
 
 	for key, value := range sol.uavDevices {
-		copyUavDevices[key] = make([]device.DeviceId, len(value))
-		copy(copyUavDevices[key], value)
+		copyUavDevices[key] = slices.Clone(value)
 	}
 
-	copyDeployedUavs := make([]int32, len(sol.deployedUavs))
-	copy(copyDeployedUavs, sol.deployedUavs)
+	//copyDeployedUavs := make([]int32, len(sol.deployedUavs))
+	//copy(copyDeployedUavs, sol.deployedUavs)
 
-	for key, value := range sol.uavDatarate {
-		copyUavDatarate[key] = value
-	}
+	copyDeployedUavs := slices.Clone(sol.deployedUavs)
+
+	//for key, value := range sol.uavDatarate {
+	//	copyUavDatarate[key] = value
+	//}
 
 	id := globalIdx
 	globalIdx++
@@ -192,7 +225,7 @@ func (sol *UAVSolution) unloadGateway(key uavSliceKey) {
 
 			if sol.uavDatarate[keyNew]+datarateNew <= sol.problem.gateway.GetMaxDatarate(key.slice) {
 				// Current gateway is available. Assign device to it
-				sol.updateDeviceAssociation(deviceId, &association)
+				sol.updateDeviceAssociation(deviceId, association)
 			} else {
 				// Current gateway is overloaded, try next
 				currentDatarate = sol.uavDatarate[key]
@@ -215,9 +248,9 @@ func (sol *UAVSolution) unloadGateway(key uavSliceKey) {
 	}
 }
 
-func (sol *UAVSolution) updateDeviceAssociation(deviceId device.DeviceId, association *uavConfigurationAssociation) {
+func (sol *UAVSolution) updateDeviceAssociation(deviceId device.DeviceId, association uavConfigurationAssociation) {
 	slice := sol.problem.devices.GetDevice(deviceId).Slice()
-	if sol.deviceAssociation[deviceId] != nil {
+	if sol.deviceAssociation[deviceId] != *(&uavConfigurationAssociation{}) {
 		// Remove load from previous gateway
 		configPrev := sol.GetAssignedConfigId(deviceId)
 		uavPrev := sol.GetAssignedUavId(deviceId)
@@ -323,8 +356,24 @@ func (sol *UAVSolution) neighbourConfig(deviceId device.DeviceId, uavId, configI
 	}
 }
 
-func (sol *UAVSolution) GetNeighbour(minDistance, maxDistance int) solver.Solution {
-	return sol.GetNeighbourSmarter(minDistance, maxDistance)
+func (sol *UAVSolution) GetNeighbourSA(minDistance, maxDistance int) Solution {
+	distance := rand.Int31n(int32(maxDistance)-int32(minDistance)) + int32(minDistance)
+	newSol := sol.copy()
+	for i := int32(0); i < distance; i++ {
+		newSol = newSol.GetNeighbourSmarter()
+	}
+	return newSol
+}
+
+func (sol *UAVSolution) GetNeighbourList(size int) []Solution {
+	solutions := make([]Solution, size)
+
+	for i := 0; i < size; i++ {
+		newSol := sol.GetNeighbourSmarter()
+		solutions[i] = newSol
+	}
+
+	return solutions
 }
 
 func (sol *UAVSolution) GetRandomNeighbour(minDistance, maxDistance int) *UAVSolution {
@@ -371,7 +420,7 @@ func (sol *UAVSolution) GetRandomNeighbour(minDistance, maxDistance int) *UAVSol
 			fmt.Println("-----------------------------------------------------------------------")
 		}
 		// Consolidate movement
-		neighbour.updateDeviceAssociation(deviceId, &ass)
+		neighbour.updateDeviceAssociation(deviceId, ass)
 	}
 
 	// Fix gateway capacity feasibility
@@ -380,40 +429,52 @@ func (sol *UAVSolution) GetRandomNeighbour(minDistance, maxDistance int) *UAVSol
 	return neighbour
 }
 
-func (sol *UAVSolution) GetNeighbourSmarter(minDistance, maxDistance int) *UAVSolution {
-	distance := rand.Int31n(int32(maxDistance)-int32(minDistance)) + int32(minDistance)
+func (sol *UAVSolution) GetNeighbourSmarter() *UAVSolution {
 	maxTies := 50
 
 	neighbour := sol.copy()
+	var move Move
 
-	for i := int32(0); i < distance; i++ {
+	for maxTies > 0 {
 		deviceId := neighbour.problem.devices.GetRandomDevice().GetId()
 		uavId := neighbour.GetAssignedUavId(deviceId)
 		configId := neighbour.GetAssignedConfigId(deviceId)
+
+		move.DeviceId = deviceId
 
 		// Check probability of changing UAV or changing Configuration
 		random := utils.GetRandomProbability()
 		var ass uavConfigurationAssociation
 		if random <= neighbour.problem.GetChanceOfChangingUAV() {
+			move.Direction = DirectionUAV
 			ass = neighbour.neighbourUAVSmarter(deviceId, uavId, configId)
 			if ass.uavId == uavId {
 				// No available move. Try another one
 				if maxTies > 0 {
-					i--
 					maxTies--
 					continue
 				}
 			}
+
+			move.PrevUAV = uavId
+			move.PrevConfig = configId
+			move.NewUAV = ass.uavId
+			move.NewConfig = ass.configId
 		} else {
+			move.Direction = DirectionConfig
 			ass = neighbour.neighbourConfig(deviceId, uavId, configId)
 			if ass.configId == configId {
 				// No available move. Try another one
 				if maxTies > 0 {
-					i--
 					maxTies--
 					continue
 				}
 			}
+
+			move.PrevUAV = uavId
+			move.PrevConfig = configId
+			move.NewUAV = ass.uavId
+			move.NewConfig = ass.configId
 		}
 
 		if debug {
@@ -423,12 +484,19 @@ func (sol *UAVSolution) GetNeighbourSmarter(minDistance, maxDistance int) *UAVSo
 			fmt.Printf("      New device: %d | uav: %d | config: %d \n", deviceId, ass.uavId, ass.configId)
 			fmt.Println("-----------------------------------------------------------------------")
 		}
+
 		// Consolidate movement
-		neighbour.updateDeviceAssociation(deviceId, &ass)
+		neighbour.updateDeviceAssociation(deviceId, ass)
+		break
+	}
+
+	if maxTies == 0 {
+		panic("No valid movement found")
 	}
 
 	// Fix gateway capacity feasibility
 	neighbour.fixGatewayCapacity()
+	neighbour.generatingMove = move
 
 	return neighbour
 }
@@ -461,24 +529,28 @@ func (sol *UAVSolution) GetCostB() float64 {
 }
 
 func (sol *UAVSolution) GetCost() float64 {
-	uavs := make([]int32, 0)
-	configs := map[int16]int32{7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0}
+	if sol.cost == 0 {
+		uavs := make([]int32, 0)
+		configs := map[int16]int32{7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0}
 
-	for _, association := range sol.deviceAssociation {
-		uavs = append(uavs, association.uavId)
-		configs[sol.problem.configurations[association.configId].Sf]++
-	}
-
-	uniqueUavs := utils.Unique(&uavs)
-
-	maxSfCount := int32(0)
-	for _, count := range configs {
-		if count > maxSfCount {
-			maxSfCount = count
+		for _, association := range sol.deviceAssociation {
+			uavs = append(uavs, association.uavId)
+			configs[sol.problem.configurations[association.configId].Sf]++
 		}
+
+		uniqueUavs := utils.Unique(&uavs)
+
+		maxSfCount := int32(0)
+		for _, count := range configs {
+			if count > maxSfCount {
+				maxSfCount = count
+			}
+		}
+
+		sol.cost = float64(len(uniqueUavs))*sol.problem.alpha + float64(maxSfCount)*sol.problem.beta
 	}
 
-	return float64(len(uniqueUavs))*sol.problem.alpha + float64(maxSfCount)*sol.problem.beta
+	return sol.cost
 }
 
 func GetRandomUAVSolution(problem *UAVProblem) (*UAVSolution, error) {
@@ -486,7 +558,7 @@ func GetRandomUAVSolution(problem *UAVProblem) (*UAVSolution, error) {
 	numUavs := problem.uavPositions.Count()
 	numAssociations := numUavs * numSlices
 	sol := &UAVSolution{
-		deviceAssociation: make(map[device.DeviceId]*uavConfigurationAssociation, problem.devices.Count()),
+		deviceAssociation: make(map[device.DeviceId]uavConfigurationAssociation, problem.devices.Count()),
 		uavSliceDevices:   make(map[uavSliceKey][]device.DeviceId),
 		uavDevices:        make(map[int32][]device.DeviceId),
 		uavDatarate:       make(map[uavSliceKey]float32, numAssociations),
@@ -506,7 +578,7 @@ func GetRandomUAVSolution(problem *UAVProblem) (*UAVSolution, error) {
 		association := problem.getRandomUavConfiguration(deviceId)
 
 		// Consolidate solution for device
-		sol.updateDeviceAssociation(deviceId, &association)
+		sol.updateDeviceAssociation(deviceId, association)
 	}
 
 	// Check Gateway Capacities

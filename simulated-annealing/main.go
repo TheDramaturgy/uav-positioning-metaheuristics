@@ -17,7 +17,7 @@ func main() {
 	seed := args[0]
 	numDevices := args[1]
 	numGateways := args[2]
-	prefix := args[3]
+	//prefix := args[3]
 
 	// ---------- Files path names
 	cwd, err := os.Getwd()
@@ -28,9 +28,6 @@ func main() {
 	devicePositionFile := cwd + "/data/endDevices_LNM_Placement_" + seed + "s+" + numDevices + "d.dat"
 	sliceAssociationFile := cwd + "/data/skl_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
 	gatewayPositionFile := cwd + "/data/equidistantPlacement_" + numGateways + ".dat"
-	logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
-	placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
-	configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
 
 	// ---------- Load Data
 	deviceList := device.ReadDeviceList(devicePositionFile, sliceAssociationFile)
@@ -50,12 +47,22 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = instance.ConstructInitialSolution()
-	if err != nil {
-		panic(err)
-	}
 
 	// ---------- Solve problem
+	//SASolve(instance)
+	TSSolve(instance)
+}
+
+func TSSolve(instance *problem.UAVProblem) {
+	maxIterations := 100000
+	tabuListSize := 40
+	batchSize := 20
+
+	s := solver.CreateTSSolver(maxIterations, batchSize, tabuListSize, instance)
+	s.Solve()
+}
+
+func SASolve(instance *problem.UAVProblem) {
 	initialTemp := 250.0
 	coolingRate := 0.99985
 	iterationsPerTemp := 20
@@ -63,7 +70,7 @@ func main() {
 	minDistance := 5
 	maxDistance := 50
 
-	s := solver.CreateSolver(initialTemp, coolingRate, iterationsPerTemp, maxIterations, minDistance, maxDistance, instance)
+	s := solver.CreateSASolver(initialTemp, coolingRate, iterationsPerTemp, maxIterations, minDistance, maxDistance, instance)
 
 	start := time.Now()
 	s.Solve()
@@ -72,10 +79,14 @@ func main() {
 	fmt.Printf("Solving time: %v\n", end.Sub(start))
 
 	// ---------- Save Result
-	ExportResults(s, instance, logFile, placementFile, configurationFile)
+
+	//logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
+	//placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	//configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	//ExportResults(s, instance, logFile, placementFile, configurationFile)
 }
 
-func ExportResults(s *solver.Solver, instance *problem.UAVProblem, logFile, placementFile, configurationFile string) {
+func ExportResults(s *solver.SASolver, instance *problem.UAVProblem, logFile, placementFile, configurationFile string) {
 	file, err := os.Create(logFile)
 	if err != nil {
 		panic(err)

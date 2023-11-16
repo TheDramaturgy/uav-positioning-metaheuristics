@@ -2,28 +2,15 @@ package solver
 
 import (
 	"fmt"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/problem"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
 	"math"
 	"strings"
 	"time"
 )
 
-type Problem interface {
-	GetCurrentSolution() Solution
-	SetCurrentSolution(Solution)
-	GetBestSolution() Solution
-	SetBestSolution(Solution)
-}
-
-type Solution interface {
-	GetCost() float64
-	GetCostA() float64
-	GetCostB() float64
-	GetNeighbour(minDistance, maxDistance int) Solution
-}
-
-type Solver struct {
-	problemInstance   Problem
+type SASolver struct {
+	problemInstance   problem.Problem
 	coolingRate       float64
 	initialTemp       float64
 	iterationsPerTemp int
@@ -34,8 +21,8 @@ type Solver struct {
 	startTime         time.Time
 }
 
-func CreateSolver(initialTemp, coolingRate float64, iterationsPerTemp, maxIterations, minDistance, maxDistance int, problem Problem) *Solver {
-	s := &Solver{
+func CreateSASolver(initialTemp, coolingRate float64, iterationsPerTemp, maxIterations, minDistance, maxDistance int, problem problem.Problem) *SASolver {
+	s := &SASolver{
 		problemInstance:   problem,
 		initialTemp:       initialTemp,
 		coolingRate:       coolingRate,
@@ -50,11 +37,11 @@ func CreateSolver(initialTemp, coolingRate float64, iterationsPerTemp, maxIterat
 	return s
 }
 
-func (solver *Solver) GetLog() string {
+func (solver *SASolver) GetLog() string {
 	return solver.log.String()
 }
 
-func (solver *Solver) Solve() Solution {
+func (solver *SASolver) Solve() problem.Solution {
 	temp := solver.initialTemp
 
 	currSolution := solver.problemInstance.GetCurrentSolution()
@@ -71,10 +58,10 @@ func (solver *Solver) Solve() Solution {
 	return solver.problemInstance.GetBestSolution()
 }
 
-func (solver *Solver) iterateOverTemp(temp float64, it int) {
+func (solver *SASolver) iterateOverTemp(temp float64, it int) {
 	for i := 0; i < solver.iterationsPerTemp; i++ {
 		currSolution := solver.problemInstance.GetCurrentSolution()
-		nextSolution := currSolution.GetNeighbour(1, 5)
+		nextSolution := currSolution.GetNeighbourSA(1, 5)
 
 		currCost := currSolution.GetCost()
 		nextCost := nextSolution.GetCost()
@@ -104,6 +91,6 @@ func (solver *Solver) iterateOverTemp(temp float64, it int) {
 	}
 }
 
-func (solver *Solver) cool(temp float64) float64 {
+func (solver *SASolver) cool(temp float64) float64 {
 	return temp * solver.coolingRate
 }
