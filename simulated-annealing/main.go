@@ -11,13 +11,12 @@ import (
 )
 
 func main() {
-
 	// ---------- Parse Arguments
 	args := os.Args[1:]
 	seed := args[0]
 	numDevices := args[1]
 	numGateways := args[2]
-	//prefix := args[3]
+	prefix := args[3]
 
 	// ---------- Files path names
 	cwd, err := os.Getwd()
@@ -43,23 +42,36 @@ func main() {
 	}
 
 	// ---------- Create problem instance
-	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.05, deviceList, candidatePosList, gw)
+	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.99, 0.05, deviceList, candidatePosList, gw)
 	if err != nil {
 		panic(err)
 	}
 
 	// ---------- Solve problem
 	//SASolve(instance)
-	TSSolve(instance)
+	TSSolve(instance, seed, numDevices, numGateways, prefix)
 }
 
-func TSSolve(instance *problem.UAVProblem) {
-	maxIterations := 100000
+func TSSolve(instance *problem.UAVProblem, seed, numDevices, numGateways, prefix string) {
+	maxIterations := 150000
 	tabuListSize := 40
 	batchSize := 20
+	maxIterationsWithoutEnhancement := 10000
 
-	s := solver.CreateTSSolver(maxIterations, batchSize, tabuListSize, instance)
+	s := solver.CreateTSSolver(maxIterations, batchSize, tabuListSize, maxIterationsWithoutEnhancement, instance)
 	s.Solve()
+
+	// ---------- Save Result
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
+	placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	ExportResults(s, instance, logFile, placementFile, configurationFile)
 }
 
 func SASolve(instance *problem.UAVProblem) {
@@ -86,7 +98,7 @@ func SASolve(instance *problem.UAVProblem) {
 	//ExportResults(s, instance, logFile, placementFile, configurationFile)
 }
 
-func ExportResults(s *solver.SASolver, instance *problem.UAVProblem, logFile, placementFile, configurationFile string) {
+func ExportResults(s solver.Solver, instance *problem.UAVProblem, logFile, placementFile, configurationFile string) {
 	file, err := os.Create(logFile)
 	if err != nil {
 		panic(err)

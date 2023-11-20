@@ -112,12 +112,12 @@ func (dl *DeviceList) addDevice(device *Device) {
 	dl.count++
 }
 
-func (deviceList *DeviceList) GetDevice(deviceId DeviceId) *Device {
-	return deviceList.devices[deviceId]
+func (dl *DeviceList) GetDevice(deviceId DeviceId) *Device {
+	return dl.devices[deviceId]
 }
 
-func (deviceList *DeviceList) Count() int32 {
-	return deviceList.count
+func (dl *DeviceList) Count() int32 {
+	return dl.count
 }
 
 func (dl *DeviceList) GetRandomDevice() *Device {
@@ -125,6 +125,10 @@ func (dl *DeviceList) GetRandomDevice() *Device {
 	return dl.devices[dl.deviceIds[deviceIdx]]
 }
 
-func (deviceList *DeviceList) Slices() []int32 {
-	return deviceList.slices
+func (dl *DeviceList) GetDeviceIds() []DeviceId {
+	return dl.deviceIds
+}
+
+func (dl *DeviceList) Slices() []int32 {
+	return dl.slices
 }

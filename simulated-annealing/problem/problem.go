@@ -31,6 +31,9 @@ type Problem interface {
 	SetCurrentSolution(Solution)
 	GetBestSolution() Solution
 	SetBestSolution(Solution)
+	GetDeviceIds() []device.DeviceId
+	GetPossibleUavs(deviceId device.DeviceId) []int32
+	GetPossibleConfigs(deviceId device.DeviceId, uavId int32) []int32
 }
 
 type deviceGatewayAssociation struct {
@@ -56,6 +59,18 @@ type UAVProblem struct {
 	newUavChance           float64
 	currentSolution        *UAVSolution
 	bestSolution           *UAVSolution
+}
+
+func (problem *UAVProblem) GetDeviceIds() []device.DeviceId {
+	return problem.devices.GetDeviceIds()
+}
+
+func (problem *UAVProblem) GetPossibleUavs(deviceId device.DeviceId) []int32 {
+	return problem.possibleUavs[deviceId]
+}
+
+func (problem *UAVProblem) GetPossibleConfigs(deviceId device.DeviceId, uavId int32) []int32 {
+	return problem.possibleConfigurations[deviceGatewayAssociation{deviceId, uavId}]
 }
 
 func (problem *UAVProblem) checkReachFeasibility(deviceId device.DeviceId, uavId, configId int32) bool {
