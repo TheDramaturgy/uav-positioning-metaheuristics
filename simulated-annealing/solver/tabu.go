@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/device"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/problem"
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
 	"math/rand"
 	"slices"
 	"strings"
@@ -30,29 +31,13 @@ type TSSolver struct {
 	batchSize       int
 	tabuListSize    int
 	tabuList        []tabuMove
-	maxEliteSol     int
-	currEliteSol    problem.Solution
-	eliteSol        []problem.Solution
-	eliteFreq       map[problem.Association]int
-	flipFreq        map[problem.Association]int
-	maxFreq         int
+	tabuUav         []int32
+	tabuUavRatio    float32
 	log             strings.Builder
 	startTime       time.Time
 }
 
-func CreateTSSolver(maxIteration, batchSize, tabuListSize, maxIterationsWithoutEnhancement int, instance problem.Problem) *TSSolver {
-	eliteFreq := make(map[problem.Association]int)
-	flipFreq := make(map[problem.Association]int)
-
-	for _, deviceId := range instance.GetDeviceIds() {
-		for _, uavId := range instance.GetPossibleUavs(deviceId) {
-			for _, configId := range instance.GetPossibleConfigs(deviceId, uavId) {
-				key := problem.Association{Device: deviceId, Uav: uavId, Config: configId}
-				eliteFreq[key] = 0
-				flipFreq[key] = 0
-			}
-		}
-	}
+func CreateTSSolver(maxIteration, batchSize, tabuListSize, maxIterationsWithoutEnhancement int, tabuUavPercentage float32, instance problem.Problem) *TSSolver {
 
 	s := &TSSolver{
 		maxIterations:   maxIteration,
@@ -60,10 +45,8 @@ func CreateTSSolver(maxIteration, batchSize, tabuListSize, maxIterationsWithoutE
 		tabuListSize:    tabuListSize,
 		maxIterationsWE: maxIterationsWithoutEnhancement,
 		problemInstance: instance,
-		maxEliteSol:     8,
-		eliteFreq:       eliteFreq,
-		flipFreq:        flipFreq,
-		maxFreq:         0,
+		tabuUav:         make([]int32, 0),
+		tabuUavRatio:    tabuUavPercentage,
 	}
 
 	s.log.Grow(64 * maxIteration)
@@ -85,7 +68,6 @@ func (solver *TSSolver) Solve() problem.Solution {
 	for solver.currIteration = 0; solver.currIteration < solver.maxIterations; solver.currIteration++ {
 		fmt.Printf("\n\n==========================\n  starting intensification  \n==========================\n\n")
 		solver.intensification()
-		solver.storeCurrEliteSol()
 		fmt.Printf("\n\n==========================\n  end of intensification  \n==========================\n\n")
 
 		if solver.currIteration < solver.maxIterations-1 {
@@ -100,7 +82,6 @@ func (solver *TSSolver) Solve() problem.Solution {
 
 func (solver *TSSolver) intensification() {
 	iterationsWithoutEnhancement := 0
-	solver.currEliteSol = solver.problemInstance.GetCurrentSolution()
 
 	for ; solver.currIteration < solver.maxIterations; solver.currIteration++ {
 		iterationsWithoutEnhancement++
@@ -109,7 +90,6 @@ func (solver *TSSolver) intensification() {
 
 		currCost := solver.problemInstance.GetCurrentSolution().GetCost()
 		bestCost := solver.problemInstance.GetBestSolution().GetCost()
-		currEliteCost := solver.currEliteSol.GetCost()
 
 		checkpoint := time.Since(solver.startTime)
 		tabuListSize := len(solver.tabuList)
@@ -119,7 +99,6 @@ func (solver *TSSolver) intensification() {
 			solver.log.WriteString(fmt.Sprintf("%d,%f,%f,%t,%f,%v\n", solver.currIteration, currCost, nextCost, isTabuMove, bestCost, checkpoint.Seconds()))
 
 			move := nextSolution.GetGeneratingMove()
-			solver.updateFlipFreq(move)
 
 			if !isTabuMove {
 				solver.addTabuMove(tabuMove{move.DeviceId, move.Direction})
@@ -132,9 +111,6 @@ func (solver *TSSolver) intensification() {
 				solver.problemInstance.SetBestSolution(nextSolution)
 			}
 
-			if nextCost < currEliteCost {
-				solver.currEliteSol = nextSolution
-			}
 		} else {
 			fmt.Printf("it: %d | currSolution: %f | NO MOVE! | bestSolution: %f | tabuListSize: %d | time: %v\n", solver.currIteration, currCost, bestCost, tabuListSize, checkpoint)
 			solver.log.WriteString(fmt.Sprintf("%d,%f,%f,%t,%f,%v\n", solver.currIteration, currCost, -1.0, isTabuMove, bestCost, checkpoint.Seconds()))
@@ -151,50 +127,55 @@ func (solver *TSSolver) diversificationRandom() {
 	solver.problemInstance.SetCurrentSolution(exploreSolution)
 }
 
-// func (solver *TSSolver) diversificationLongTermMemory() {
-// 	solver.resetEliteFreq()
+//func (solver *TSSolver) diversificationLongTermMemory() {
+//	solver.resetEliteFreq()
+//
+//	for _, eliteSol := range solver.eliteSol {
+//		for _, as := range eliteSol.GetAssociations() {
+//			solver.eliteFreq[as]++
+//		}
+//	}
+//
+//	scoreAs := make([]associationScore, 0, len(solver.flipFreq))
+//	for as, freq := range solver.flipFreq {
+//		r := float64(len(solver.eliteSol))
+//		score := float64(solver.eliteFreq[as]) * (r - float64(solver.eliteFreq[as])) / r * r
+//		score += Beta * (1.0 - float64(freq)/float64(solver.maxFreq))
+//
+//		scoreAs = append(scoreAs, associationScore{as, score})
+//	}
+//
+//	lambda := 1.001
+//	sum := 1.0
+//	//for i, _ := range scoreAs {
+//	//	sum += math.Pow(float64(i+1), -lambda)
+//	//}
+//
+//	slices.SortFunc(scoreAs, func(i, j associationScore) int { return int(j.score - i.score) })
+//	idx := rand.Intn(len(solver.eliteSol))
+//	flipCount := 0
+//	eliteSol := solver.eliteSol[idx].Copy()
+//	for j, as := range scoreAs {
+//		if j > len(scoreAs)/4 {
+//			break
+//		}
+//
+//		chance := rand.Float32()
+//		p := float32(math.Pow(float64(j+1), -lambda) / sum)
+//		if chance <= p {
+//			eliteSol.FlipAssociation(as.association)
+//			flipCount++
+//		}
+//
+//	}
+//
+//	solver.problemInstance.SetCurrentSolution(eliteSol)
+//}
 
-// 	for _, eliteSol := range solver.eliteSol {
-// 		for _, as := range eliteSol.GetAssociations() {
-// 			solver.eliteFreq[as]++
-// 		}
-// 	}
-
-// 	scoreAs := make([]associationScore, 0, len(solver.flipFreq))
-// 	for as, freq := range solver.flipFreq {
-// 		r := float64(len(solver.eliteSol))
-// 		score := float64(solver.eliteFreq[as]) * (r - float64(solver.eliteFreq[as])) / r * r
-// 		score += Beta * (1.0 - float64(freq)/float64(solver.maxFreq))
-
-// 		scoreAs = append(scoreAs, associationScore{as, score})
-// 	}
-
-// 	lambda := 1.001
-// 	sum := 1.0
-// 	//for i, _ := range scoreAs {
-// 	//	sum += math.Pow(float64(i+1), -lambda)
-// 	//}
-
-// 	slices.SortFunc(scoreAs, func(i, j associationScore) int { return int(j.score - i.score) })
-// 	idx := rand.Intn(len(solver.eliteSol))
-// 	flipCount := 0
-// 	eliteSol := solver.eliteSol[idx].Copy()
-// 	for j, as := range scoreAs {
-// 		if j > len(scoreAs)/4 {
-// 			break
-// 		}
-
-// 		chance := rand.Float32()
-// 		p := float32(math.Pow(float64(j+1), -lambda) / sum)
-// 		if chance <= p {
-// 			eliteSol.FlipAssociation(as.association)
-// 			flipCount++
-// 		}
-
-// 	}
-
-// 	solver.problemInstance.SetCurrentSolution(eliteSol)
-// }
+func (solver *TSSolver) diversificationLongTermMemory() {
+	solver.tabuUav = append(solver.tabuUav, solver.problemInstance.GetBestSolution().GetDeployedUavs()...)
+	solver.tabuUav = utils.Unique(&solver.tabuUav)
+}
 
 func (solver *TSSolver) evaluateCandidates(candidates []problem.Solution) (problem.Solution, bool, bool) {
 	slices.SortFunc(candidates, func(i, j problem.Solution) int { return int(i.GetCost() - j.GetCost()) })
@@ -253,20 +234,6 @@ func (solver *TSSolver) addTabuMove(move tabuMove) {
 	solver.tabuList = append(solver.tabuList, move)
 }
 
-func (solver *TSSolver) updateFlipFreq(move problem.Move) {
-	key := problem.Association{Device: move.DeviceId, Uav: move.PrevUAV, Config: move.PrevConfig}
-	solver.flipFreq[key]++
-	if solver.flipFreq[key] > solver.maxFreq {
-		solver.maxFreq = solver.flipFreq[key]
-	}
-
-	key = problem.Association{Device: move.DeviceId, Uav: move.NewUAV, Config: move.NewConfig}
-	solver.flipFreq[key]++
-	if solver.flipFreq[key] > solver.maxFreq {
-		solver.maxFreq = solver.flipFreq[key]
-	}
-}
-
 // func (solver *TSSolver) resetEliteFreq() {
 // 	for key, _ := range solver.eliteFreq {
 // 		solver.eliteFreq[key] = 0
@@ -275,12 +242,4 @@ func (solver *TSSolver) updateFlipFreq(move problem.Move) {
 
 func (solver *TSSolver) isTabuMove(move problem.Move) bool {
 	return slices.Contains(solver.tabuList, tabuMove{move.DeviceId, move.Direction})
-}
-
-func (solver *TSSolver) storeCurrEliteSol() {
-	if len(solver.eliteSol) >= solver.maxEliteSol {
-		slices.SortFunc(solver.eliteSol, func(i, j problem.Solution) int { return int(i.GetCost() - j.GetCost()) })
-		solver.eliteSol = solver.eliteSol[:solver.maxEliteSol-1]
-	}
-	solver.eliteSol = append(solver.eliteSol, solver.currEliteSol)
 }

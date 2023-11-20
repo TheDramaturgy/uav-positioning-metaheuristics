@@ -214,6 +214,27 @@ func (problem *UAVProblem) getRandomUavConfiguration(deviceId device.DeviceId) u
 	return uavConfigurationAssociation{uavRandId, configRandId}
 }
 
+func (problem *UAVProblem) getRandomUavConfigurationTabu(deviceId device.DeviceId, used, tabu []int32, tabuRatio, currTabuRatio float32) uavConfigurationAssociation {
+	possibleUavs := problem.possibleUavs[deviceId]
+
+	if currTabuRatio >= tabuRatio {
+		usedTabuUavs := utils.Intersection(tabu, used)
+		possibleUavs = utils.Complement(tabu, possibleUavs)
+		possibleUavs = append(possibleUavs, usedTabuUavs...)
+	}
+
+	uavRandIdx := rand.Int31n(int32(len(possibleUavs)))
+	uavRandId := possibleUavs[uavRandIdx]
+
+	association := deviceGatewayAssociation{deviceId, uavRandId}
+	numPossibleConfigs := len(problem.possibleConfigurations[association])
+
+	configRandIdx := rand.Int31n(int32(numPossibleConfigs))
+	configRandId := problem.possibleConfigurations[association][configRandIdx]
+
+	return uavConfigurationAssociation{uavRandId, configRandId}
+}
+
 func (problem *UAVProblem) neighbourUav(deviceId device.DeviceId, uavId, configId int32, possibleUavs *[]int32, next bool) uavConfigurationAssociation {
 	// Find current UAV index inside possible UAVs
 	// fmt.Printf("SEARCH: %d\n", uavId)
@@ -247,6 +268,72 @@ func (problem *UAVProblem) neighbourUav(deviceId device.DeviceId, uavId, configI
 	}
 }
 
+func (problem *UAVProblem) neighbourUavTabu(deviceId device.DeviceId, uavId, configId int32, possibleUavs *[]int32, tabu []int32, next bool) uavConfigurationAssociation {
+	// Find current UAV index inside possible UAVs
+	// fmt.Printf("SEARCH: %d\n", uavId)
+	slices.Sort(tabu)
+	slices.Sort(*possibleUavs)
+	uavIdx, found := slices.BinarySearch(*possibleUavs, uavId)
+	if !found {
+		panic("uavId not found")
+	}
+
+	// Get next possible UAV
+	numUavs := len(*possibleUavs)
+
+	// Try to find non-tabu uav
+	uavNewIdx := -1
+	if next {
+		for i := 0; i < numUavs; i++ {
+			candidate := int(math.Mod(float64(uavIdx+1), float64(numUavs)))
+
+			_, found := slices.BinarySearch(tabu, (*possibleUavs)[candidate])
+			if found {
+				// Tabu UAV
+				continue
+			} else {
+				// Non-tabu UAV
+				uavNewIdx = candidate
+				break
+			}
+		}
+	} else {
+		for i := 0; i < numUavs; i++ {
+			candidate := uavIdx - 1
+			if candidate < 0 {
+				candidate = numUavs - 1
+			}
+
+			_, found := slices.BinarySearch(tabu, (*possibleUavs)[candidate])
+			if found {
+				// Tabu UAV
+				continue
+			} else {
+				// Non-tabu UAV
+				uavNewIdx = candidate
+				break
+			}
+		}
+	}
+
+	if uavNewIdx == -1 {
+		// no non-tabu UAV found, use tabu UAV
+		return problem.neighbourUav(deviceId, uavId, configId, possibleUavs, next)
+	}
+
+	uavNewId := (*possibleUavs)[uavNewIdx]
+
+	// Adjust Configuration if needed
+	devGwAss := deviceGatewayAssociation{deviceId, uavNewId}
+	_, found = slices.BinarySearch(problem.possibleConfigurations[devGwAss], configId)
+
+	if found {
+		return uavConfigurationAssociation{uavNewId, configId}
+	} else {
+		return problem.nextConfig(deviceId, uavNewId, configId)
+	}
+}
+
 func (problem *UAVProblem) nextUav(deviceId device.DeviceId, uavId, configId int32) uavConfigurationAssociation {
 	possibleUavs := make([]int32, len(problem.possibleUavs[deviceId]))
 	copy(possibleUavs, problem.possibleUavs[deviceId])
@@ -259,43 +346,57 @@ func (problem *UAVProblem) previousUav(deviceId device.DeviceId, uavId, configId
 	return problem.neighbourUav(deviceId, uavId, configId, &possibleUavs, false)
 }
 
-func (problem *UAVProblem) nextDeployedUav(deviceId device.DeviceId, uavId, configId int32, sol *UAVSolution) uavConfigurationAssociation {
+func (problem *UAVProblem) nextDeployedUav(deviceId device.DeviceId, uavId, configId int32, sol *UAVSolution, tabu []int32) uavConfigurationAssociation {
 	// Possible UAVs are the intersection between those available for the device and the deployed ones
 	possibleUavs := utils.Intersection(problem.possibleUavs[deviceId], sol.deployedUavs)
-	// fmt.Printf("!!!!!!!!!!!! NEXT DEPLOYED !!!!!!!!!!!!\n")
-	// fmt.Printf("DEPLOYED: %+v\n", problem.deployedUavs)
-	// fmt.Printf("POSSIBLE: %+v\n", possibleUavs)
+
+	if len(tabu) > 0 {
+		return problem.neighbourUavTabu(deviceId, uavId, configId, &possibleUavs, tabu, true)
+	}
 	return problem.neighbourUav(deviceId, uavId, configId, &possibleUavs, true)
 }
 
-func (problem *UAVProblem) previousDeployedUav(deviceId device.DeviceId, uavId, configId int32, sol *UAVSolution) uavConfigurationAssociation {
+func (problem *UAVProblem) previousDeployedUav(deviceId device.DeviceId, uavId, configId int32, sol *UAVSolution, tabu []int32) uavConfigurationAssociation {
 	// Possible UAVs are the intersection between those available for the device and the deployed ones
 	possibleUavs := utils.Intersection(problem.possibleUavs[deviceId], sol.deployedUavs)
-	// fmt.Printf("!!!!!!!!!!!! PREV DEPLOYED !!!!!!!!!!!!\n")
-	// fmt.Printf("DEPLOYED: %+v\n", problem.deployedUavs)
-	// fmt.Printf("POSSIBLE: %+v\n", possibleUavs)
+
+	if len(tabu) > 0 {
+		return problem.neighbourUavTabu(deviceId, uavId, configId, &possibleUavs, tabu, false)
+	}
 	return problem.neighbourUav(deviceId, uavId, configId, &possibleUavs, false)
 }
 
-func (problem *UAVProblem) nextNewUav(deviceId device.DeviceId, uavId, configId int32, sol *UAVSolution) uavConfigurationAssociation {
+func (problem *UAVProblem) nextNewUav(deviceId device.DeviceId, uavId, configId int32, sol *UAVSolution, tabu []int32, percentage float32) uavConfigurationAssociation {
 	// Possible UAVs are the intersection between those available for the device and the deployed ones
 	complement := []int32{uavId}
 	complement = append(complement, utils.Complement(sol.deployedUavs, problem.uavPositions.GetCandidatePositionIdList())...)
 	possibleUavs := utils.Intersection(problem.possibleUavs[deviceId], complement)
-	// fmt.Printf("!!!!!!!!!!!! NEXT NEW !!!!!!!!!!!!\n")
-	// fmt.Printf("DEPLOYED: %+v\n", problem.deployedUavs)
-	// fmt.Printf("POSSIBLE: %+v\n", possibleUavs)
+
+	if len(tabu) > 0 {
+		deployedTabuUAVS := utils.Intersection(sol.deployedUavs, tabu)
+		tabuUavRatio := float32(len(deployedTabuUAVS)) / float32(len(sol.deployedUavs))
+
+		if tabuUavRatio > percentage {
+			return problem.neighbourUavTabu(deviceId, uavId, configId, &possibleUavs, tabu, true)
+		}
+	}
 	return problem.neighbourUav(deviceId, uavId, configId, &possibleUavs, true)
 }
 
-func (problem *UAVProblem) previousNewUav(deviceId device.DeviceId, uavId, configId int32, sol *UAVSolution) uavConfigurationAssociation {
+func (problem *UAVProblem) previousNewUav(deviceId device.DeviceId, uavId, configId int32, sol *UAVSolution, tabu []int32, percentage float32) uavConfigurationAssociation {
 	// Possible UAVs are the intersection between those available for the device and the deployed ones
 	complement := []int32{uavId}
 	complement = append(complement, utils.Complement(sol.deployedUavs, problem.uavPositions.GetCandidatePositionIdList())...)
 	possibleUavs := utils.Intersection(problem.possibleUavs[deviceId], complement)
-	// fmt.Printf("!!!!!!!!!!!! PREV NEW !!!!!!!!!!!!\n")
-	// fmt.Printf("DEPLOYED: %+v\n", problem.currentSolution.deployedUavs)
-	// fmt.Printf("POSSIBLE: %+v\n", possibleUavs)
+
+	if len(tabu) > 0 {
+		deployedTabuUAVS := utils.Intersection(sol.deployedUavs, tabu)
+		tabuUavRatio := float32(len(deployedTabuUAVS)) / float32(len(sol.deployedUavs))
+
+		if tabuUavRatio > percentage {
+			return problem.neighbourUavTabu(deviceId, uavId, configId, &possibleUavs, tabu, false)
+		}
+	}
 	return problem.neighbourUav(deviceId, uavId, configId, &possibleUavs, false)
 }
 
