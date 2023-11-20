@@ -33,6 +33,7 @@ type TSSolver struct {
 	tabuList        []tabuMove
 	tabuUav         []int32
 	tabuUavRatio    float32
+	eliteSolution   problem.Solution
 	log             strings.Builder
 	startTime       time.Time
 }
@@ -72,7 +73,7 @@ func (solver *TSSolver) Solve() problem.Solution {
 
 		if solver.currIteration < solver.maxIterations-1 {
 			fmt.Printf("\n\n==========================\n  starting diversification  \n==========================\n\n")
-			solver.diversificationRandom()
+			solver.diversificationLongTermMemory()
 			fmt.Printf("\n\n==========================\n  end of diversification  \n==========================\n\n")
 		}
 	}
@@ -82,6 +83,7 @@ func (solver *TSSolver) Solve() problem.Solution {
 
 func (solver *TSSolver) intensification() {
 	iterationsWithoutEnhancement := 0
+	solver.eliteSolution = solver.problemInstance.GetCurrentSolution()
 
 	for ; solver.currIteration < solver.maxIterations; solver.currIteration++ {
 		iterationsWithoutEnhancement++
@@ -95,7 +97,8 @@ func (solver *TSSolver) intensification() {
 		tabuListSize := len(solver.tabuList)
 		if candidateSolutionFound {
 			nextCost := nextSolution.GetCost()
-			fmt.Printf("it: %d | currSolution: %f | nextSolution: %f | tabu: %t | bestSolution: %f | tabuListSize: %d | time: %v\n", solver.currIteration, currCost, nextCost, isTabuMove, bestCost, tabuListSize, checkpoint.Seconds())
+			nextUavTabuRatio := nextSolution.GetUavTabuRatio(solver.tabuUav)
+			fmt.Printf("it: %d | currSolution: %f | nextSolution: %f | tabu: %t | tabuUavRatio: %f | bestSolution: %f | tabuListSize: %d | time: %v\n", solver.currIteration, currCost, nextCost, isTabuMove, nextUavTabuRatio, bestCost, tabuListSize, checkpoint.Seconds())
 			solver.log.WriteString(fmt.Sprintf("%d,%f,%f,%t,%f,%v\n", solver.currIteration, currCost, nextCost, isTabuMove, bestCost, checkpoint.Seconds()))
 
 			move := nextSolution.GetGeneratingMove()
@@ -107,12 +110,16 @@ func (solver *TSSolver) intensification() {
 			solver.problemInstance.SetCurrentSolution(nextSolution)
 
 			if nextCost < bestCost {
-				iterationsWithoutEnhancement = 0
 				solver.problemInstance.SetBestSolution(nextSolution)
 			}
 
+			if nextCost < solver.eliteSolution.GetCost() {
+				iterationsWithoutEnhancement = 0
+				solver.eliteSolution = nextSolution
+			}
+
 		} else {
-			fmt.Printf("it: %d | currSolution: %f | NO MOVE! | bestSolution: %f | tabuListSize: %d | time: %v\n", solver.currIteration, currCost, bestCost, tabuListSize, checkpoint)
+			fmt.Printf("it: %d | currSolution: %f | NO MOVE! | bestSolution: %f | tabuListSize: %d | time: %v\n", solver.currIteration, currCost, bestCost, tabuListSize, checkpoint.Seconds())
 			solver.log.WriteString(fmt.Sprintf("%d,%f,%f,%t,%f,%v\n", solver.currIteration, currCost, -1.0, isTabuMove, bestCost, checkpoint.Seconds()))
 		}
 
@@ -127,54 +134,16 @@ func (solver *TSSolver) diversificationRandom() {
 	solver.problemInstance.SetCurrentSolution(exploreSolution)
 }
 
-//func (solver *TSSolver) diversificationLongTermMemory() {
-//	solver.resetEliteFreq()
-//
-//	for _, eliteSol := range solver.eliteSol {
-//		for _, as := range eliteSol.GetAssociations() {
-//			solver.eliteFreq[as]++
-//		}
-//	}
-//
-//	scoreAs := make([]associationScore, 0, len(solver.flipFreq))
-//	for as, freq := range solver.flipFreq {
-//		r := float64(len(solver.eliteSol))
-//		score := float64(solver.eliteFreq[as]) * (r - float64(solver.eliteFreq[as])) / r * r
-//		score += Beta * (1.0 - float64(freq)/float64(solver.maxFreq))
-//
-//		scoreAs = append(scoreAs, associationScore{as, score})
-//	}
-//
-//	lambda := 1.001
-//	sum := 1.0
-//	//for i, _ := range scoreAs {
-//	//	sum += math.Pow(float64(i+1), -lambda)
-//	//}
-//
-//	slices.SortFunc(scoreAs, func(i, j associationScore) int { return int(j.score - i.score) })
-//	idx := rand.Intn(len(solver.eliteSol))
-//	flipCount := 0
-//	eliteSol := solver.eliteSol[idx].Copy()
-//	for j, as := range scoreAs {
-//		if j > len(scoreAs)/4 {
-//			break
-//		}
-//
-//		chance := rand.Float32()
-//		p := float32(math.Pow(float64(j+1), -lambda) / sum)
-//		if chance <= p {
-//			eliteSol.FlipAssociation(as.association)
-//			flipCount++
-//		}
-//
-//	}
-//
-//	solver.problemInstance.SetCurrentSolution(eliteSol)
-//}
-
 func (solver *TSSolver) diversificationLongTermMemory() {
-	solver.tabuUav = append(solver.tabuUav, solver.problemInstance.GetBestSolution().GetDeployedUavs()...)
+	solver.tabuUav = append(solver.tabuUav, solver.eliteSolution.GetDeployedUavs()...)
 	solver.tabuUav = utils.Unique(&solver.tabuUav)
+
+	newSolution, err := problem.GetRandomUAVSolutionTabu(solver.problemInstance.(*problem.UAVProblem), solver.tabuUav, solver.tabuUavRatio)
+	if err != nil {
+		panic(err)
+	}
+
+	solver.problemInstance.SetCurrentSolution(newSolution)
 }
 
 func (solver *TSSolver) evaluateCandidates(candidates []problem.Solution) (problem.Solution, bool, bool) {

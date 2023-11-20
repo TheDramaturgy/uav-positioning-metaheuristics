@@ -219,8 +219,11 @@ func (problem *UAVProblem) getRandomUavConfigurationTabu(deviceId device.DeviceI
 
 	if currTabuRatio >= tabuRatio {
 		usedTabuUavs := utils.Intersection(tabu, used)
-		possibleUavs = utils.Complement(tabu, possibleUavs)
-		possibleUavs = append(possibleUavs, usedTabuUavs...)
+		possibleUsedTabuUavs := utils.Intersection(possibleUavs, usedTabuUavs)
+
+		nonTabuUavs := utils.Complement(tabu, problem.uavPositions.GetCandidatePositionIdList())
+		possibleUavs = utils.Intersection(possibleUavs, nonTabuUavs)
+		possibleUavs = append(possibleUavs, possibleUsedTabuUavs...)
 	}
 
 	uavRandIdx := rand.Int31n(int32(len(possibleUavs)))

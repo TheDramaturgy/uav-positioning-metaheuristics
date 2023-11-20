@@ -619,8 +619,28 @@ func (sol *UAVSolution) GetNeighbourSmarterTabu(uavTabu []int32, tabuPercentage 
 	neighbour := sol.copy()
 	var move Move
 
+	tabuDevices := make([]device.DeviceId, 0)
+	tabuUavRatio := float32(0.0)
+	if len(uavTabu) > 0 {
+		for _, deviceId := range sol.problem.GetDeviceIds() {
+			found := utils.Contains(uavTabu, sol.deviceAssociation[deviceId].uavId)
+			if found {
+				tabuDevices = append(tabuDevices, deviceId)
+			}
+		}
+
+		deployedTabuUAVS := utils.Intersection(sol.deployedUavs, uavTabu)
+		tabuUavRatio = float32(len(deployedTabuUAVS)) / float32(len(sol.deployedUavs))
+	}
+
 	for maxTies > 0 {
 		deviceId := neighbour.problem.devices.GetRandomDevice().GetId()
+		if len(tabuDevices) > 0 && tabuUavRatio > tabuPercentage {
+			random := utils.GetRandomProbability()
+			if random <= 0.75 {
+				deviceId = tabuDevices[rand.Int31n(int32(len(tabuDevices)))]
+			}
+		}
 		uavId := neighbour.GetAssignedUavId(deviceId)
 		configId := neighbour.GetAssignedConfigId(deviceId)
 

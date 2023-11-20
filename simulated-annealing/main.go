@@ -57,8 +57,9 @@ func TSSolve(instance *problem.UAVProblem, seed, numDevices, numGateways, prefix
 	tabuListSize := 40
 	batchSize := 20
 	maxIterationsWithoutEnhancement := 10000
+	tabuUavRatio := float32(0.25)
 
-	s := solver.CreateTSSolver(maxIterations, batchSize, tabuListSize, maxIterationsWithoutEnhancement, instance)
+	s := solver.CreateTSSolver(maxIterations, batchSize, tabuListSize, maxIterationsWithoutEnhancement, tabuUavRatio, instance)
 	s.Solve()
 
 	// ---------- Save Result
