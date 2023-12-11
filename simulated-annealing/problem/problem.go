@@ -32,8 +32,13 @@ type Problem interface {
 	GetBestSolution() Solution
 	SetBestSolution(Solution)
 	GetDeviceIds() []device.DeviceId
+	GetUAVIds() []int32
 	GetPossibleUavs(deviceId device.DeviceId) []int32
 	GetPossibleConfigs(deviceId device.DeviceId, uavId int32) []int32
+	GetCoverage(int32) []device.DeviceId
+	GetDatarate(sf int16, slice int32) float32
+	GetMaxDatarate(slice int32) float32
+	GetSlice(deviceId device.DeviceId) int32
 }
 
 type deviceGatewayAssociation struct {
@@ -53,6 +58,7 @@ type UAVProblem struct {
 	configurations         map[int32]*device.Configuration
 	possibleConfigurations map[deviceGatewayAssociation][]int32
 	possibleUavs           map[device.DeviceId][]int32
+	coverageMap            map[int32][]device.DeviceId
 	alpha                  float64
 	beta                   float64
 	changeUav              float64
@@ -65,12 +71,32 @@ func (problem *UAVProblem) GetDeviceIds() []device.DeviceId {
 	return problem.devices.GetDeviceIds()
 }
 
+func (problem *UAVProblem) GetUAVIds() []int32 {
+	return problem.uavPositions.GetCandidatePositionIdList()
+}
+
 func (problem *UAVProblem) GetPossibleUavs(deviceId device.DeviceId) []int32 {
 	return problem.possibleUavs[deviceId]
 }
 
 func (problem *UAVProblem) GetPossibleConfigs(deviceId device.DeviceId, uavId int32) []int32 {
 	return problem.possibleConfigurations[deviceGatewayAssociation{deviceId, uavId}]
+}
+
+func (problem *UAVProblem) GetCoverage(uavId int32) []device.DeviceId {
+	return problem.coverageMap[uavId]
+}
+
+func (problem *UAVProblem) GetDatarate(sf int16, slice int32) float32 {
+	return problem.gateway.GetDatarate(sf, slice)
+}
+
+func (problem *UAVProblem) GetMaxDatarate(slice int32) float32 {
+	return problem.gateway.GetMaxDatarate(slice)
+}
+
+func (problem *UAVProblem) GetSlice(deviceId device.DeviceId) int32 {
+	return problem.devices.GetDevice(deviceId).Slice()
 }
 
 func (problem *UAVProblem) checkReachFeasibility(deviceId device.DeviceId, uavId, configId int32) bool {
@@ -154,6 +180,7 @@ func (problem *UAVProblem) processPossibleConfigurationPerDevice() error {
 	numCombinations := numDevices * problem.uavPositions.Count()
 	problem.possibleConfigurations = make(map[deviceGatewayAssociation][]int32, numCombinations)
 	problem.possibleUavs = make(map[device.DeviceId][]int32, numDevices)
+	problem.coverageMap = make(map[int32][]device.DeviceId, 1)
 
 	// for each device/candidate position association, check which configurations are feasible
 	for deviceId := device.DeviceId(0); deviceId < device.DeviceId(problem.devices.Count()); deviceId++ {
@@ -182,6 +209,7 @@ func (problem *UAVProblem) processPossibleConfigurationPerDevice() error {
 				slices.Sort(configs)
 				problem.possibleConfigurations[deviceGatewayAssociation{deviceId, uavId}] = configs
 				problem.possibleUavs[deviceId] = append(problem.possibleUavs[deviceId], uavId)
+				problem.coverageMap[uavId] = append(problem.coverageMap[uavId], deviceId)
 			}
 		}
 
@@ -212,6 +240,22 @@ func (problem *UAVProblem) getRandomUavConfiguration(deviceId device.DeviceId) u
 	configRandId := problem.possibleConfigurations[association][configRandIdx]
 
 	return uavConfigurationAssociation{uavRandId, configRandId}
+}
+
+func (problem *UAVProblem) getConfigurationForUAV(deviceId device.DeviceId, uavId int32, SF int16) uavConfigurationAssociation {
+	association := deviceGatewayAssociation{deviceId, uavId}
+	numPossibleConfigs := len(problem.possibleConfigurations[association])
+
+	for _, configId := range problem.possibleConfigurations[association] {
+		if problem.configurations[configId].Sf == SF {
+			return uavConfigurationAssociation{uavId, configId}
+		}
+	}
+
+	configRandIdx := rand.Int31n(int32(numPossibleConfigs))
+	configRandId := problem.possibleConfigurations[association][configRandIdx]
+
+	return uavConfigurationAssociation{uavId, configRandId}
 }
 
 func (problem *UAVProblem) getRandomUavConfigurationTabu(deviceId device.DeviceId, used, tabu []int32, tabuRatio, currTabuRatio float32) uavConfigurationAssociation {

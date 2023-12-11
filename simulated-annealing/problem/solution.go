@@ -222,6 +222,7 @@ func (sol *UAVSolution) fixGatewayCapacity() {
 		for slice := int32(0); slice < numSlices; slice++ {
 			key := uavSliceKey{uavId, slice}
 			if sol.uavDatarate[key] > sol.problem.gateway.GetMaxDatarate(slice) {
+				//fmt.Printf("(!!!) Fixing gateway capacity...\n")
 				sol.unloadGateway(key)
 			}
 		}
@@ -784,6 +785,39 @@ func GetRandomUAVSolution(problem *UAVProblem) (*UAVSolution, error) {
 	// Check Gateway Capacities
 	sol.fixGatewayCapacity()
 
+	return sol, nil
+}
+
+func GetUAVSolution(problem *UAVProblem, uavs []int32, coverage map[int32][]device.DeviceId, defaultSF int16) (*UAVSolution, error) {
+	numSlices := int32(len(problem.devices.Slices()))
+	numUavs := problem.uavPositions.Count()
+	numAssociations := numUavs * numSlices
+	sol := &UAVSolution{
+		deviceAssociation: make(map[device.DeviceId]uavConfigurationAssociation, problem.devices.Count()),
+		uavSliceDevices:   make(map[uavSliceKey][]device.DeviceId),
+		uavDevices:        make(map[int32][]device.DeviceId),
+		uavDatarate:       make(map[uavSliceKey]float32, numAssociations),
+		deployedUavs:      make([]int32, 0),
+		problem:           problem,
+	}
+
+	for uavId := int32(0); uavId < numUavs; uavId++ {
+		for slice := int32(0); slice < numSlices; slice++ {
+			key := uavSliceKey{uavId, slice}
+			sol.uavSliceDevices[key] = make([]device.DeviceId, 0)
+		}
+	}
+
+	for _, uavId := range uavs {
+		for _, deviceId := range coverage[uavId] {
+			association := problem.getConfigurationForUAV(deviceId, uavId, defaultSF)
+
+			// Consolidate solution for device
+			sol.updateDeviceAssociation(deviceId, association)
+		}
+	}
+
+	sol.fixGatewayCapacity()
 	return sol, nil
 }
 

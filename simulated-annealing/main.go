@@ -42,14 +42,32 @@ func main() {
 	}
 
 	// ---------- Create problem instance
-	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.99, 0.05, deviceList, candidatePosList, gw)
+	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.0, deviceList, candidatePosList, gw)
 	if err != nil {
 		panic(err)
 	}
 
 	// ---------- Solve problem
 	//SASolve(instance)
-	TSSolve(instance, seed, numDevices, numGateways, prefix)
+	//TSSolve(instance, seed, numDevices, numGateways, prefix)
+	GRASPSolve(instance, seed, numDevices, numGateways, prefix)
+}
+
+func GRASPSolve(instance *problem.UAVProblem, seed, numDevices, numGateways, prefix string) {
+	s := solver.CreateGRASPSolver(instance)
+	s.Solve()
+
+	// ---------- Save Result
+
+	//cwd, err := os.Getwd()
+	//if err != nil {
+	//	panic(err)
+	//}
+
+	//logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
+	//placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	//configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	//ExportResults(s, instance, logFile, placementFile, configurationFile)
 }
 
 func TSSolve(instance *problem.UAVProblem, seed, numDevices, numGateways, prefix string) {

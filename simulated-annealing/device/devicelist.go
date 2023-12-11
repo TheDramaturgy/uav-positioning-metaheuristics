@@ -126,7 +126,9 @@ func (dl *DeviceList) GetRandomDevice() *Device {
 }
 
 func (dl *DeviceList) GetDeviceIds() []DeviceId {
-	return dl.deviceIds
+	ids := make([]DeviceId, len(dl.devices))
+	copy(ids, dl.deviceIds)
+	return ids
 }
 
 func (dl *DeviceList) Slices() []int32 {
