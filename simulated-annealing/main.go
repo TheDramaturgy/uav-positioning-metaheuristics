@@ -2,13 +2,17 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/device"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/gateway"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/problem"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/solver"
-	"os"
-	"time"
 )
+
+var wg sync.WaitGroup
 
 func main() {
 	// ---------- Parse Arguments
@@ -16,7 +20,7 @@ func main() {
 	seed := args[0]
 	numDevices := args[1]
 	numGateways := args[2]
-	prefix := args[3]
+	// prefix := args[3]
 
 	// ---------- Files path names
 	cwd, err := os.Getwd()
@@ -50,24 +54,37 @@ func main() {
 	// ---------- Solve problem
 	//SASolve(instance)
 	//TSSolve(instance, seed, numDevices, numGateways, prefix)
-	GRASPSolve(instance, seed, numDevices, numGateways, prefix)
-}
 
-func GRASPSolve(instance *problem.UAVProblem, seed, numDevices, numGateways, prefix string) {
-	s := solver.CreateGRASPSolver(instance)
-	s.Solve()
-
-	// ---------- Save Result
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic(err)
+	for i := 0; i < 6; i++ {
+		fmt.Printf("Starting thread %d\n", i)
+		wg.Add(5)
+		go GRASPSolve(instance, seed, numDevices, numGateways, i*5, i*5+5)
 	}
 
-	logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
-	placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
-	configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
-	ExportResults(s, instance, logFile, placementFile, configurationFile)
+	wg.Wait()
+}
+
+func GRASPSolve(instance *problem.UAVProblem, seed, numDevices, numGateways string, start, end int) {
+	fmt.Printf("From %d to %d\n", start, end)
+	for i := start; i < end; i++ {
+		s := solver.CreateGRASPSolver(instance)
+		s.Solve()
+
+		// ---------- Save Result
+
+		cwd, err := os.Getwd()
+		if err != nil {
+			panic(err)
+		}
+
+		prefix := fmt.Sprintf("grasp%d", i)
+
+		logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
+		placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+		configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+		ExportResults(s, instance, logFile, placementFile, configurationFile)
+		wg.Done()
+	}
 }
 
 func TSSolve(instance *problem.UAVProblem, seed, numDevices, numGateways, prefix string) {
