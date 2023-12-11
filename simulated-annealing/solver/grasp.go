@@ -49,6 +49,10 @@ func (solver *GRASP) localSearch(solution problem.Solution) problem.Solution {
 
 func (solver *GRASP) constructGreedyRandomizedSolution() problem.Solution {
 	solver.uavs = solver.problemInstance.GetUAVIds()
+	if len(solver.uavs) <= 0 {
+		panic("No UAVs")
+	}
+
 	solver.devicePriority = make(map[device.DeviceId]int, len(solver.problemInstance.GetDeviceIds()))
 	solver.coverage = make(map[int32][]device.DeviceId, len(solver.problemInstance.GetUAVIds()))
 	for _, uavId := range solver.problemInstance.GetUAVIds() {
@@ -75,13 +79,21 @@ func (solver *GRASP) constructGreedyRandomizedSolution() problem.Solution {
 		uncoveredDevices = solver.adaptGreedyFunction(covered, uncoveredDevices)
 
 		idx := slices.Index(solver.uavs, uavIdChosen)
-		solver.uavs = append(solver.uavs[:idx], solver.uavs[idx+1:]...)
-
+		solver.uavs = slices.Delete(solver.uavs, idx, idx+1)
 	}
 
 	solution, err := problem.GetUAVSolution(solver.problemInstance.(*problem.UAVProblem), coverUavs, mapCoverage, 10)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	}
+
+	aux := 0
+	for _, uavId := range solution.GetDeployedUavs() {
+		aux += len(solution.GetDevicesAssignedTo(uavId))
+	}
+
+	if aux < 80 {
+		panic("Not enough devices")
 	}
 
 	return solution
@@ -121,14 +133,14 @@ func (solver *GRASP) adaptGreedyFunction(covered []device.DeviceId, uncoveredDev
 			continue
 		}
 
-		uncoveredDevices = append(uncoveredDevices[:idx], uncoveredDevices[idx+1:]...)
+		uncoveredDevices = slices.Delete(uncoveredDevices, idx, idx+1)
 		for _, uavId := range solver.uavs {
 			idx := slices.Index(solver.coverage[uavId], deviceId)
 			if idx == -1 {
 				continue
 			}
 
-			solver.coverage[uavId] = append(solver.coverage[uavId][:idx], solver.coverage[uavId][idx+1:]...)
+			solver.coverage[uavId] = slices.Delete(solver.coverage[uavId], idx, idx+1)
 		}
 
 	}

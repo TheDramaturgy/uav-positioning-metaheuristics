@@ -217,18 +217,19 @@ func (sol *UAVSolution) Copy() Solution {
 func (sol *UAVSolution) fixGatewayCapacity() bool {
 	numUavPositions := sol.problem.uavPositions.Count()
 	numSlices := int32(len(sol.problem.devices.Slices()))
-	var res bool = false
 	for uavId := int32(0); uavId < numUavPositions; uavId++ {
 		for slice := int32(0); slice < numSlices; slice++ {
 			key := uavSliceKey{uavId, slice}
 			if sol.uavDatarate[key] > sol.problem.gateway.GetMaxDatarate(slice) {
 				//fmt.Printf("(!!!) Fixing gateway capacity...\n")
-				res = sol.unloadGateway(key)
+				if !sol.unloadGateway(key) {
+					return false
+				}
 			}
 		}
 	}
 
-	return res
+	return true
 }
 
 func (sol *UAVSolution) unloadGateway(key uavSliceKey) bool {

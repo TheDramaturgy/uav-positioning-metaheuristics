@@ -104,5 +104,7 @@ func (candidates *CandidatePositionList) GetCandidatePosition(posId int32) utils
 }
 
 func (cpl *CandidatePositionList) GetCandidatePositionIdList() []int32 {
-	return cpl.candidateIds
+	ids := make([]int32, len(cpl.candidateIds))
+	copy(ids, cpl.candidateIds)
+	return ids
 }
