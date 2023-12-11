@@ -46,10 +46,10 @@ func main() {
 	}
 
 	// ---------- Create problem instance
-	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.0, deviceList, candidatePosList, gw)
-	if err != nil {
-		panic(err)
-	}
+	//instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.0, deviceList, candidatePosList, gw)
+	//if err != nil {
+	//	panic(err)
+	//}
 
 	// ---------- Solve problem
 	//SASolve(instance)
@@ -58,15 +58,20 @@ func main() {
 	for i := 0; i < 6; i++ {
 		fmt.Printf("Starting thread %d\n", i)
 		wg.Add(5)
-		go GRASPSolve(instance, seed, numDevices, numGateways, i*5, i*5+5)
+		go GRASPSolve(deviceList, candidatePosList, gw, seed, numDevices, numGateways, i*5, i*5+5)
 	}
 
 	wg.Wait()
 }
 
-func GRASPSolve(instance *problem.UAVProblem, seed, numDevices, numGateways string, start, end int) {
+func GRASPSolve(deviceList *device.DeviceList, candidatePosList *gateway.CandidatePositionList, gw *gateway.Gateway, seed, numDevices, numGateways string, start, end int) {
 	fmt.Printf("From %d to %d\n", start, end)
 	for i := start; i < end; i++ {
+		instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.0, deviceList, candidatePosList, gw)
+		if err != nil {
+			panic(err)
+		}
+
 		s := solver.CreateGRASPSolver(instance)
 		s.Solve()
 

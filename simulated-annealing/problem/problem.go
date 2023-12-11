@@ -39,6 +39,7 @@ type Problem interface {
 	GetDatarate(sf int16, slice int32) float32
 	GetMaxDatarate(slice int32) float32
 	GetSlice(deviceId device.DeviceId) int32
+	Copy() Problem
 }
 
 type deviceGatewayAssociation struct {
@@ -65,6 +66,45 @@ type UAVProblem struct {
 	newUavChance           float64
 	currentSolution        *UAVSolution
 	bestSolution           *UAVSolution
+}
+
+func (problem *UAVProblem) copy() *UAVProblem {
+
+	problemCopy := &UAVProblem{
+		gateway:                problem.gateway.Copy(),
+		devices:                problem.devices.Copy(),
+		uavPositions:           problem.uavPositions.Copy(),
+		configurations:         make(map[int32]*device.Configuration, 0),
+		possibleConfigurations: make(map[deviceGatewayAssociation][]int32, 0),
+		possibleUavs:           make(map[device.DeviceId][]int32),
+		coverageMap:            make(map[int32][]device.DeviceId),
+		alpha:                  problem.alpha,
+		beta:                   problem.beta,
+		changeUav:              problem.changeUav,
+		newUavChance:           problem.newUavChance,
+	}
+
+	for key, value := range problem.configurations {
+		problemCopy.configurations[key] = value
+	}
+
+	for key, value := range problem.possibleConfigurations {
+		problemCopy.possibleConfigurations[key] = value
+	}
+
+	for key, value := range problem.possibleUavs {
+		problemCopy.possibleUavs[key] = value
+	}
+
+	for key, value := range problem.coverageMap {
+		problemCopy.coverageMap[key] = value
+	}
+
+	return problemCopy
+}
+
+func (problem *UAVProblem) Copy() Problem {
+	return problem.copy()
 }
 
 func (problem *UAVProblem) GetDeviceIds() []device.DeviceId {

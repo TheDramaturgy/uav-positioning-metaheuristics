@@ -214,7 +214,7 @@ func (sol *UAVSolution) Copy() Solution {
 	return sol.copy()
 }
 
-func (sol *UAVSolution) fixGatewayCapacity() {
+func (sol *UAVSolution) fixGatewayCapacity() bool {
 	numUavPositions := sol.problem.uavPositions.Count()
 	numSlices := int32(len(sol.problem.devices.Slices()))
 
@@ -223,13 +223,13 @@ func (sol *UAVSolution) fixGatewayCapacity() {
 			key := uavSliceKey{uavId, slice}
 			if sol.uavDatarate[key] > sol.problem.gateway.GetMaxDatarate(slice) {
 				//fmt.Printf("(!!!) Fixing gateway capacity...\n")
-				sol.unloadGateway(key)
+				return sol.unloadGateway(key)
 			}
 		}
 	}
 }
 
-func (sol *UAVSolution) unloadGateway(key uavSliceKey) {
+func (sol *UAVSolution) unloadGateway(key uavSliceKey) bool {
 	devicesToMove := make([]device.DeviceId, len(sol.uavSliceDevices[key]))
 	copy(devicesToMove, sol.uavSliceDevices[key])
 
@@ -270,7 +270,7 @@ func (sol *UAVSolution) unloadGateway(key uavSliceKey) {
 
 		if len(devicesToMove) == 0 {
 			// There is no way to move any device. Unfeasible Problem
-			panic("impossible to unload gateway")
+			return false
 		}
 
 		currentDatarate = sol.uavDatarate[key]
@@ -281,6 +281,8 @@ func (sol *UAVSolution) unloadGateway(key uavSliceKey) {
 		deviceId = utils.Pop(&devicesToMove, int(deviceIdx))
 		uavId = key.uavId
 	}
+
+	return true
 }
 
 func (sol *UAVSolution) updateDeviceAssociation(deviceId device.DeviceId, association uavConfigurationAssociation) {

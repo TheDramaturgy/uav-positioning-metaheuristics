@@ -16,6 +16,24 @@ type DeviceList struct {
 	slices    []int32
 }
 
+func (dl *DeviceList) Copy() *DeviceList {
+	deviceList := DeviceList{
+		count:     dl.count,
+		devices:   make(map[DeviceId]*Device, 0),
+		deviceIds: make([]DeviceId, len(dl.deviceIds)),
+		slices:    make([]int32, len(dl.slices)),
+	}
+
+	for _, device := range dl.devices {
+		deviceList.devices[device.id] = device.Copy()
+	}
+
+	copy(deviceList.deviceIds, dl.deviceIds)
+	copy(deviceList.slices, dl.slices)
+
+	return &deviceList
+}
+
 func ReadDeviceList(devicePath, slicePath string) *DeviceList {
 	deviceList := DeviceList{
 		count:   0,

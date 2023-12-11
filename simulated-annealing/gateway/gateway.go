@@ -9,6 +9,26 @@ type Gateway struct {
 	slices       []int32
 }
 
+func (gateway *Gateway) Copy() *Gateway {
+	newGateway := Gateway{
+		bandwidths:   make(map[int32]float32),
+		maxDatarates: make(map[int32]float32),
+		sensitivity:  make(map[int16]float32),
+		slices:       make([]int32, len(gateway.slices)),
+	}
+	copy(newGateway.slices, gateway.slices)
+	for k, v := range gateway.bandwidths {
+		newGateway.bandwidths[k] = v
+	}
+	for k, v := range gateway.maxDatarates {
+		newGateway.maxDatarates[k] = v
+	}
+	for k, v := range gateway.sensitivity {
+		newGateway.sensitivity[k] = v
+	}
+	return &newGateway
+}
+
 func (gateway *Gateway) AddSlice(sliceId int32, bandwidth, maxDatarate float32) {
 	if gateway.bandwidths == nil {
 		gateway.bandwidths = make(map[int32]float32)

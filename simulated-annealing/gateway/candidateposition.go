@@ -19,6 +19,22 @@ type CandidatePositionList struct {
 	candidateIds []int32
 }
 
+func (cpl *CandidatePositionList) Copy() *CandidatePositionList {
+	candidatePositionList := CandidatePositionList{
+		count:        cpl.count,
+		candidates:   make(map[int32]*CandidatePosition, 0),
+		candidateIds: make([]int32, len(cpl.candidateIds)),
+	}
+
+	for key, value := range cpl.candidates {
+		candidatePositionList.candidates[key] = value
+	}
+
+	copy(candidatePositionList.candidateIds, cpl.candidateIds)
+
+	return &candidatePositionList
+}
+
 func ReadCandidatePositionList(filePath string) *CandidatePositionList {
 	candidatePositionList := CandidatePositionList{
 		count:      0,

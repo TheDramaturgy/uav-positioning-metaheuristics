@@ -29,3 +29,11 @@ func (d *Device) GetPosition() utils.Position {
 func (d *Device) Slice() int32 {
 	return d.slice
 }
+
+func (d *Device) Copy() *Device {
+	return &Device{
+		id:    d.id,
+		pos:   utils.Position{d.pos.X, d.pos.Y, d.pos.Z},
+		slice: d.slice,
+	}
+}
