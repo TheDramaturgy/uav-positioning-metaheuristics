@@ -17,6 +17,7 @@ type GRASP struct {
 	uavs            []int32
 	startTime       time.Time
 	devicePriority  map[device.DeviceId]int
+	TabuSolver      *TSSolver
 }
 
 func CreateGRASPSolver(instance problem.Problem) *GRASP {
@@ -42,8 +43,8 @@ func (solver *GRASP) localSearch(solution problem.Solution) problem.Solution {
 	maxIterationsWithoutEnhancement := maxIterations
 	tabuUavRatio := float32(0.25)
 
-	s := CreateTSSolver(maxIterations, batchSize, tabuListSize, maxIterationsWithoutEnhancement, tabuUavRatio, solver.problemInstance)
-	return s.Solve()
+	solver.TabuSolver = CreateTSSolver(maxIterations, batchSize, tabuListSize, maxIterationsWithoutEnhancement, tabuUavRatio, solver.problemInstance)
+	return solver.TabuSolver.Solve()
 }
 
 func (solver *GRASP) constructGreedyRandomizedSolution() problem.Solution {
@@ -152,4 +153,8 @@ func (solver *GRASP) getCandidates(alpha float64) []int32 {
 		}
 	}
 	return uavs[:size]
+}
+
+func (solver *GRASP) GetLog() string {
+	return solver.TabuSolver.GetLog()
 }
