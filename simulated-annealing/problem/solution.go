@@ -223,7 +223,7 @@ func (sol *UAVSolution) fixGatewayCapacity() bool {
 			if sol.uavDatarate[key] > sol.problem.gateway.GetMaxDatarate(slice) {
 				//fmt.Printf("(!!!) Fixing gateway capacity...\n")
 				if !sol.unloadGateway(key) {
-					return false
+					panic("Impossible to fix Gateway")
 				}
 			}
 		}
