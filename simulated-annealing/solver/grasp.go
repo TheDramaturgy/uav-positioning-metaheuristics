@@ -26,6 +26,15 @@ func CreateGRASPSolver(instance problem.Problem) *GRASP {
 	}
 }
 
+func (solver *GRASP) SolveFast() problem.Solution {
+	solver.startTime = time.Now()
+
+	solution := solver.constructGreedyRandomizedSolution()
+	solver.problemInstance.SetCurrentSolution(solution)
+
+	return solution
+}
+
 func (solver *GRASP) Solve() problem.Solution {
 	solver.startTime = time.Now()
 

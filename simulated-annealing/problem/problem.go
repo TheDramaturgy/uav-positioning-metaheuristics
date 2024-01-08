@@ -6,6 +6,7 @@ import (
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/device"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/gateway"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
+	"maps"
 	"math"
 	"math/rand"
 	"slices"
@@ -27,6 +28,7 @@ const (
 )
 
 type Problem interface {
+	GetRandomSolution() (Solution, error)
 	GetCurrentSolution() Solution
 	SetCurrentSolution(Solution)
 	GetBestSolution() Solution
@@ -84,21 +86,10 @@ func (problem *UAVProblem) copy() *UAVProblem {
 		newUavChance:           problem.newUavChance,
 	}
 
-	for key, value := range problem.configurations {
-		problemCopy.configurations[key] = value
-	}
-
-	for key, value := range problem.possibleConfigurations {
-		problemCopy.possibleConfigurations[key] = value
-	}
-
-	for key, value := range problem.possibleUavs {
-		problemCopy.possibleUavs[key] = value
-	}
-
-	for key, value := range problem.coverageMap {
-		problemCopy.coverageMap[key] = value
-	}
+	problemCopy.configurations = maps.Clone(problem.configurations)
+	problemCopy.possibleConfigurations = maps.Clone(problem.possibleConfigurations)
+	problemCopy.possibleUavs = maps.Clone(problem.possibleUavs)
+	problemCopy.coverageMap = maps.Clone(problem.coverageMap)
 
 	return problemCopy
 }
@@ -124,7 +115,7 @@ func (problem *UAVProblem) GetPossibleConfigs(deviceId device.DeviceId, uavId in
 }
 
 func (problem *UAVProblem) GetCoverage(uavId int32) []device.DeviceId {
-	return problem.coverageMap[uavId]
+	return slices.Clone(problem.coverageMap[uavId])
 }
 
 func (problem *UAVProblem) GetDatarate(sf int16, slice int32) float32 {
@@ -186,6 +177,10 @@ func (problem *UAVProblem) ConstructInitialSolution() error {
 	}
 
 	return nil
+}
+
+func (problem *UAVProblem) GetRandomSolution() (Solution, error) {
+	return GetRandomUAVSolution(problem)
 }
 
 func (problem *UAVProblem) GetCurrentSolution() Solution {

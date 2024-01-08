@@ -12,7 +12,7 @@ import (
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/solver"
 )
 
-var wg sync.WaitGroup
+var mainWG = &sync.WaitGroup{}
 
 func main() {
 	// ---------- Parse Arguments
@@ -46,22 +46,53 @@ func main() {
 	}
 
 	// ---------- Create problem instance
-	//instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.0, deviceList, candidatePosList, gw)
-	//if err != nil {
-	//	panic(err)
-	//}
+	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.0, deviceList, candidatePosList, gw)
+	if err != nil {
+		panic(err)
+	}
 
 	// ---------- Solve problem
 	//SASolve(instance)
 	//TSSolve(instance, seed, numDevices, numGateways, prefix)
 
-	for i := 0; i < 6; i++ {
-		fmt.Printf("Starting thread %d\n", i)
-		wg.Add(5)
-		go GRASPSolve(deviceList, candidatePosList, gw, seed, numDevices, numGateways, i*5, i*5+5)
-	}
+	//for i := 0; i < 6; i++ {
+	//	fmt.Printf("Starting thread %d\n", i)
+	//	wg.Add(5)
+	//	go GRASPSolve(deviceList, candidatePosList, gw, seed, numDevices, numGateways, i*5, i*5+5)
+	//}
 
-	wg.Wait()
+	//wg.Wait()
+
+	//for i := 0; i < 30; i++ {
+	//	//prefix := fmt.Sprintf("random%d", i)
+	//	iterations := 25000
+	//	population := 50
+	//	//crossRate := 0.1
+	//	mutationRate := 0.0001
+	//
+	//	GASolve(instance, iterations, population, 0.7, mutationRate, fmt.Sprintf("ga+grasp%d", i), seed, numGateways, numDevices)
+	//}
+
+	GASolve(instance, 1, 2, 1.0, 0.0001, fmt.Sprintf("test1"), seed, numGateways, numDevices)
+
+}
+
+func GASolve(instance *problem.UAVProblem, it, population int, crossRate, mutationRate float64, prefix, seed, numGateways, numDevices string) {
+	//defer mainWG.Done()
+	s := solver.CreateGASolver(instance, it, population, crossRate, mutationRate)
+	s.Test()
+
+	// ---------- Save Result
+
+	//cwd, err := os.Getwd()
+	//if err != nil {
+	//	panic(err)
+	//}
+	//
+	//logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
+	//placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	//configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	//ExportResults(s, instance, logFile, placementFile, configurationFile)
 }
 
 func GRASPSolve(deviceList *device.DeviceList, candidatePosList *gateway.CandidatePositionList, gw *gateway.Gateway, seed, numDevices, numGateways string, start, end int) {
@@ -88,7 +119,7 @@ func GRASPSolve(deviceList *device.DeviceList, candidatePosList *gateway.Candida
 		placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
 		configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
 		ExportResults(s, instance, logFile, placementFile, configurationFile)
-		wg.Done()
+		mainWG.Done()
 	}
 }
 
@@ -140,6 +171,7 @@ func SASolve(instance *problem.UAVProblem) {
 }
 
 func ExportResults(s solver.Solver, instance *problem.UAVProblem, logFile, placementFile, configurationFile string) {
+	// Log
 	file, err := os.Create(logFile)
 	if err != nil {
 		panic(err)

@@ -18,6 +18,7 @@ const (
 var globalIdx int64 = 0
 
 type Solution interface {
+	GetInverseCost() float64
 	GetCost() float64
 	GetCostA() float64
 	GetCostB() float64
@@ -75,7 +76,11 @@ func (sol *UAVSolution) GetAssociations() []Association {
 }
 
 func (sol *UAVSolution) String() string {
-	return fmt.Sprintf("id: %d, cost: %f, move: %+v", sol.id, sol.GetCost(), sol.generatingMove)
+	t := fmt.Sprintf("id: %d, cost: %f, move: %+v\n", sol.id, sol.GetCost(), sol.generatingMove)
+	for i, _ := range sol.problem.devices.GetDeviceIds() {
+		t += fmt.Sprintf(" (%d,%d),", sol.deviceAssociation[device.DeviceId(i)].uavId, sol.deviceAssociation[device.DeviceId(i)].configId)
+	}
+	return t
 }
 
 func (sol *UAVSolution) GetGeneratingMove() Move {
@@ -225,6 +230,21 @@ func (sol *UAVSolution) fixGatewayCapacity() bool {
 				if !sol.unloadGateway(key) {
 					panic("Impossible to fix Gateway")
 				}
+			}
+		}
+	}
+
+	return true
+}
+
+func (sol *UAVSolution) IsFeasible() bool {
+	numUavPositions := sol.problem.uavPositions.Count()
+	numSlices := int32(len(sol.problem.devices.Slices()))
+	for uavId := int32(0); uavId < numUavPositions; uavId++ {
+		for slice := int32(0); slice < numSlices; slice++ {
+			key := uavSliceKey{uavId, slice}
+			if sol.uavDatarate[key] > sol.problem.gateway.GetMaxDatarate(slice) {
+				return false
 			}
 		}
 	}
@@ -759,11 +779,20 @@ func (sol *UAVSolution) GetCost() float64 {
 	return sol.cost
 }
 
+func (sol *UAVSolution) GetInverseCost() float64 {
+	cost := sol.GetCost()
+	maxCost := float64(len(sol.problem.devices.GetDeviceIds())) * (sol.problem.alpha + sol.problem.beta)
+	return maxCost - cost
+}
+
 func GetRandomUAVSolution(problem *UAVProblem) (*UAVSolution, error) {
 	numSlices := int32(len(problem.devices.Slices()))
 	numUavs := problem.uavPositions.Count()
 	numAssociations := numUavs * numSlices
+	id := globalIdx
+	globalIdx++
 	sol := &UAVSolution{
+		id:                id,
 		deviceAssociation: make(map[device.DeviceId]uavConfigurationAssociation, problem.devices.Count()),
 		uavSliceDevices:   make(map[uavSliceKey][]device.DeviceId),
 		uavDevices:        make(map[int32][]device.DeviceId),
@@ -824,6 +853,40 @@ func GetUAVSolution(problem *UAVProblem, uavs []int32, coverage map[int32][]devi
 
 	sol.fixGatewayCapacity()
 	return sol, nil
+}
+
+func Crossover(sol1, sol2 *UAVSolution, cprob, mprob float64) (*UAVSolution, *UAVSolution) {
+	sol1Copy := sol1.copy()
+	sol2Copy := sol2.copy()
+
+	numDevices := int32(len(sol1.problem.devices.GetDeviceIds()))
+	pivotId := device.DeviceId(rand.Int31n(numDevices - 1))
+
+	r := rand.Float64()
+	if r > cprob {
+		pivotId = device.DeviceId(numDevices)
+	}
+
+	for id := device.DeviceId(0); int32(id) < numDevices; id++ {
+		if id >= pivotId {
+			uavId1 := sol1Copy.GetAssignedUavId(id)
+			configId1 := sol1Copy.GetAssignedConfigId(id)
+			uavId2 := sol2Copy.GetAssignedUavId(id)
+			configId2 := sol2Copy.GetAssignedConfigId(id)
+
+			sol1Copy.updateDeviceAssociation(id, uavConfigurationAssociation{uavId2, configId2})
+			sol2Copy.updateDeviceAssociation(id, uavConfigurationAssociation{uavId1, configId1})
+		}
+
+		if sol1Copy.mutate(id, mprob) {
+			//fmt.Printf("--------------------- C1 Mutated ---------------------\n")
+		}
+		if sol2Copy.mutate(id, mprob) {
+			//fmt.Printf("--------------------- C2 Mutated ---------------------\n")
+		}
+	}
+
+	return sol1Copy, sol2Copy
 }
 
 func GetRandomUAVSolutionTabu(problem *UAVProblem, tabuUavs []int32, tabuRatio float32) (*UAVSolution, error) {
@@ -890,4 +953,13 @@ func (sol *UAVSolution) OutputConfigurations() string {
 	}
 
 	return output
+}
+
+func (sol *UAVSolution) mutate(id device.DeviceId, mprob float64) bool {
+	r := rand.Float64()
+	if r < mprob {
+		sol.updateDeviceAssociation(id, sol.problem.getRandomUavConfiguration(id))
+		return true
+	}
+	return false
 }
