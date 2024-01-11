@@ -2,11 +2,12 @@ package solver
 
 import (
 	"fmt"
-	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/problem"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/problem"
 )
 
 type GA struct {
@@ -26,13 +27,13 @@ type GA struct {
 }
 
 func CreateGASolver(instance problem.Problem, maxGen, populationSize int, crossRate, mutationRate float64) *GA {
-	//population := CreatePopulationRandom(instance, populationSize)
+	population := CreatePopulationRandom(instance, populationSize)
 
-	population := CreatePopulationEmpty()
-	for i := 0; i < populationSize; i++ {
-		s := CreateGRASPSolver(instance.Copy())
-		population.AddIndividual(s.SolveFast())
-	}
+	// population := CreatePopulationEmpty()
+	// for i := 0; i < populationSize; i++ {
+	// 	s := CreateGRASPSolver(instance.Copy())
+	// 	population.AddIndividual(s.SolveFast())
+	// }
 
 	return &GA{
 		problemInstance: instance,

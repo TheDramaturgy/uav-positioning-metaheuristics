@@ -1,6 +1,7 @@
 package problem
 
 import (
+	"cmp"
 	"fmt"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/device"
 	"github.com/TheDramaturgy/uav-positioning-metaheuristics/simulated-annealing/utils"
@@ -853,6 +854,149 @@ func GetUAVSolution(problem *UAVProblem, uavs []int32, coverage map[int32][]devi
 
 	sol.fixGatewayCapacity()
 	return sol, nil
+}
+
+func GetUAVSolutionFromDeployedUAVs(problem *UAVProblem, uavs []int32) (*UAVSolution, error) {
+	deviceCoverage := make(map[device.DeviceId]map[int][]int32)
+
+	for _, dev := range problem.GetDeviceIds() {
+		deviceCoverage[dev] = make(map[int][]int32)
+		for i := device.MinSF; i <= device.MaxSF; i++ {
+			deviceCoverage[dev][i] = make([]int32, 0)
+		}
+
+		for _, uav := range uavs {
+			for _, sf := range problem.GetPossibleSFs(dev, uav) {
+				deviceCoverage[dev][sf] = append(deviceCoverage[dev][sf], uav)
+			}
+		}
+	}
+
+	uncoveredDevices := problem.GetDeviceIds()
+
+	slices.SortFunc(uncoveredDevices, func(i, j device.DeviceId) int {
+		for sf := device.MinSF; sf <= device.MaxSF; sf++ {
+			if len(deviceCoverage[i][sf]) == 0 && len(deviceCoverage[j][sf]) == 0 {
+				continue
+			}
+
+			if len(deviceCoverage[j][sf]) == 0 {
+				return -1
+			}
+
+			if len(deviceCoverage[i][sf]) == 0 {
+				return 1
+			}
+
+			return cmp.Compare(len(deviceCoverage[i][sf]), len(deviceCoverage[j][sf]))
+		}
+
+		return 0
+	})
+
+	numSlices := int32(len(problem.devices.Slices()))
+	numUavs := problem.uavPositions.Count()
+	numAssociations := numUavs * numSlices
+	sol := &UAVSolution{
+		deviceAssociation: make(map[device.DeviceId]uavConfigurationAssociation, problem.devices.Count()),
+		uavSliceDevices:   make(map[uavSliceKey][]device.DeviceId),
+		uavDevices:        make(map[int32][]device.DeviceId),
+		uavDatarate:       make(map[uavSliceKey]float32, numAssociations),
+		deployedUavs:      make([]int32, 0),
+		problem:           problem,
+	}
+
+	for uavId := int32(0); uavId < numUavs; uavId++ {
+		for slice := int32(0); slice < numSlices; slice++ {
+			key := uavSliceKey{uavId, slice}
+			sol.uavSliceDevices[key] = make([]device.DeviceId, 0)
+		}
+	}
+
+	sf := 7
+	uavDevices := make(map[int32]int, len(uavs))
+	for idx, devId := range uncoveredDevices {
+		for len(deviceCoverage[devId][sf]) == 0 {
+			sf++
+			if sf > device.MaxSF {
+				newUav := getFixUAV(devId, uavs, problem)
+				uavs = append(uavs, newUav)
+				for i := idx; i < len(uncoveredDevices); i++ {
+					dev := uncoveredDevices[i]
+					for _, sf := range problem.GetPossibleSFs(dev, newUav) {
+						deviceCoverage[dev][sf] = append(deviceCoverage[dev][sf], newUav)
+					}
+				}
+
+				sf = 7
+				//panic("Infeasible")
+			}
+		}
+
+		slice := problem.GetSlice(devId)
+		selectedUav := int32(-1)
+		for _, uavId := range deviceCoverage[devId][sf] {
+			key := uavSliceKey{uavId, slice}
+			if sol.uavDatarate[key] > sol.problem.gateway.GetMaxDatarate(slice) {
+				continue
+			}
+
+			if selectedUav == -1 || uavDevices[uavId] < uavDevices[selectedUav] {
+				selectedUav = uavId
+			}
+		}
+
+		if selectedUav == -1 {
+			newUav := getFixUAV(devId, uavs, problem)
+			uavs = append(uavs, newUav)
+			for i := idx; i < len(uncoveredDevices); i++ {
+				dev := uncoveredDevices[i]
+				for _, sf := range problem.GetPossibleSFs(dev, newUav) {
+					deviceCoverage[dev][sf] = append(deviceCoverage[dev][sf], newUav)
+				}
+			}
+
+			selectedUav = newUav
+			//panic("Infeasible")
+		}
+		association := problem.getConfigurationForUAV(devId, selectedUav, int16(sf))
+
+		// Consolidate solution for device
+		sol.updateDeviceAssociation(devId, association)
+	}
+
+	sol.fixGatewayCapacity()
+	return sol, nil
+}
+
+func getFixUAV(devId device.DeviceId, deployedUavs []int32, instance *UAVProblem) int32 {
+	uavs := instance.GetUAVIds()
+	coverage := make(map[int32][]device.DeviceId, len(instance.GetUAVIds()))
+	for _, uavId := range uavs {
+		coverage[uavId] = instance.GetCoverage(uavId)
+	}
+
+	slices.SortFunc(uavs, func(i, j int32) int {
+		return cmp.Compare(len(coverage[j]), len(coverage[i]))
+	})
+
+	selected := int32(-1)
+	for _, i := range uavs {
+		if slices.Contains(deployedUavs, i) {
+			continue
+		}
+
+		if slices.Contains(coverage[i], devId) {
+			selected = i
+			break
+		}
+	}
+
+	if selected == -1 {
+		panic("Infeasible")
+	}
+
+	return selected
 }
 
 func Crossover(sol1, sol2 *UAVSolution, cprob, mprob float64) (*UAVSolution, *UAVSolution) {

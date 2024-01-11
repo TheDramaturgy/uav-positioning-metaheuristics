@@ -73,14 +73,20 @@ func main() {
 	//	GASolve(instance, iterations, population, 0.7, mutationRate, fmt.Sprintf("ga+grasp%d", i), seed, numGateways, numDevices)
 	//}
 
-	GASolve(instance, 1, 2, 1.0, 0.0001, fmt.Sprintf("test1"), seed, numGateways, numDevices)
+	filePrefix := "GA"
+	iterations := 25000
+	population := 50
+	crossRate := 0.7
+	mutationRate := 0.0001
+
+	GASolve(instance, iterations, population, crossRate, mutationRate, filePrefix, seed, numGateways, numDevices)
 
 }
 
 func GASolve(instance *problem.UAVProblem, it, population int, crossRate, mutationRate float64, prefix, seed, numGateways, numDevices string) {
 	//defer mainWG.Done()
 	s := solver.CreateGASolver(instance, it, population, crossRate, mutationRate)
-	s.Test()
+	s.Solve()
 
 	// ---------- Save Result
 

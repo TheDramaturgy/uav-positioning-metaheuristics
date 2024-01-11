@@ -60,6 +60,7 @@ type UAVProblem struct {
 	uavPositions           *gateway.CandidatePositionList
 	configurations         map[int32]*device.Configuration
 	possibleConfigurations map[deviceGatewayAssociation][]int32
+	possibleSFs            map[deviceGatewayAssociation][]int
 	possibleUavs           map[device.DeviceId][]int32
 	coverageMap            map[int32][]device.DeviceId
 	alpha                  float64
@@ -112,6 +113,10 @@ func (problem *UAVProblem) GetPossibleUavs(deviceId device.DeviceId) []int32 {
 
 func (problem *UAVProblem) GetPossibleConfigs(deviceId device.DeviceId, uavId int32) []int32 {
 	return problem.possibleConfigurations[deviceGatewayAssociation{deviceId, uavId}]
+}
+
+func (problem *UAVProblem) GetPossibleSFs(devId device.DeviceId, uavId int32) []int {
+	return problem.possibleSFs[deviceGatewayAssociation{devId, uavId}]
 }
 
 func (problem *UAVProblem) GetCoverage(uavId int32) []device.DeviceId {
@@ -214,6 +219,7 @@ func (problem *UAVProblem) processPossibleConfigurationPerDevice() error {
 	numDevices := problem.devices.Count()
 	numCombinations := numDevices * problem.uavPositions.Count()
 	problem.possibleConfigurations = make(map[deviceGatewayAssociation][]int32, numCombinations)
+	problem.possibleSFs = make(map[deviceGatewayAssociation][]int, numCombinations)
 	problem.possibleUavs = make(map[device.DeviceId][]int32, numDevices)
 	problem.coverageMap = make(map[int32][]device.DeviceId, 1)
 
@@ -222,7 +228,9 @@ func (problem *UAVProblem) processPossibleConfigurationPerDevice() error {
 		isFeasible := false
 		for uavId := int32(0); uavId < problem.uavPositions.Count(); uavId++ {
 			configs := make([]int32, 0)
+			sfs := make([]int, 0)
 			for configId := range problem.configurations {
+				sf := device.GetSF(configId)
 				// verify whether the configuration satisfy the qos bound for the device
 				if !problem.checkQoSFeasibility(deviceId, configId) {
 					continue
@@ -235,14 +243,20 @@ func (problem *UAVProblem) processPossibleConfigurationPerDevice() error {
 
 				// feasible association
 				configs = append(configs, configId)
+				if !slices.Contains(sfs, sf) {
+					sfs = append(sfs, sf)
+				}
 			}
 
 			// if at least one configuration was found for the association, the problem is feasible
 			// for this device
 			if len(configs) > 0 {
 				isFeasible = true
+				association := deviceGatewayAssociation{deviceId, uavId}
 				slices.Sort(configs)
-				problem.possibleConfigurations[deviceGatewayAssociation{deviceId, uavId}] = configs
+				slices.Sort(sfs)
+				problem.possibleConfigurations[association] = configs
+				problem.possibleSFs[association] = sfs
 				problem.possibleUavs[deviceId] = append(problem.possibleUavs[deviceId], uavId)
 				problem.coverageMap[uavId] = append(problem.coverageMap[uavId], deviceId)
 			}
