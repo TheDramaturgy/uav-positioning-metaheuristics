@@ -57,11 +57,10 @@ func main() {
 
 	//for i := 0; i < 6; i++ {
 	//	fmt.Printf("Starting thread %d\n", i)
-	//	wg.Add(5)
+	//	mainWG.Add(5)
 	//	go GRASPSolve(deviceList, candidatePosList, gw, seed, numDevices, numGateways, i*5, i*5+5)
 	//}
-
-	//wg.Wait()
+	//mainWG.Wait()
 
 	//for i := 0; i < 30; i++ {
 	//	//prefix := fmt.Sprintf("random%d", i)
@@ -90,21 +89,21 @@ func GASolve(instance *problem.UAVProblem, it, population int, crossRate, mutati
 
 	// ---------- Save Result
 
-	//cwd, err := os.Getwd()
-	//if err != nil {
-	//	panic(err)
-	//}
-	//
-	//logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
-	//placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
-	//configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
-	//ExportResults(s, instance, logFile, placementFile, configurationFile)
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
+	placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	ExportResults(s, instance, logFile, placementFile, configurationFile)
 }
 
 func GRASPSolve(deviceList *device.DeviceList, candidatePosList *gateway.CandidatePositionList, gw *gateway.Gateway, seed, numDevices, numGateways string, start, end int) {
 	fmt.Printf("From %d to %d\n", start, end)
 	for i := start; i < end; i++ {
-		instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.0, deviceList, candidatePosList, gw)
+		instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.001, deviceList, candidatePosList, gw)
 		if err != nil {
 			panic(err)
 		}

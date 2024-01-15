@@ -94,7 +94,15 @@ func (sol *UAVSolution) GetUavTabuRatio(tabu []int32) float32 {
 }
 
 func (sol *UAVSolution) GetDeployedUavs() []int32 {
-	return sol.deployedUavs
+	return slices.Clone(sol.deployedUavs)
+}
+
+func (sol *UAVSolution) GetDeployedUavsGene() []bool {
+	uavs := make([]bool, sol.problem.uavPositions.Count())
+	for _, uavId := range sol.deployedUavs {
+		uavs[uavId] = true
+	}
+	return uavs
 }
 
 func (sol *UAVSolution) deployUav(uavId int32) {
@@ -875,24 +883,29 @@ func GetUAVSolutionFromDeployedUAVs(problem *UAVProblem, uavs []int32) (*UAVSolu
 	uncoveredDevices := problem.GetDeviceIds()
 
 	slices.SortFunc(uncoveredDevices, func(i, j device.DeviceId) int {
-		for sf := device.MinSF; sf <= device.MaxSF; sf++ {
-			if len(deviceCoverage[i][sf]) == 0 && len(deviceCoverage[j][sf]) == 0 {
-				continue
-			}
-
-			if len(deviceCoverage[j][sf]) == 0 {
-				return -1
-			}
-
-			if len(deviceCoverage[i][sf]) == 0 {
-				return 1
-			}
-
-			return cmp.Compare(len(deviceCoverage[i][sf]), len(deviceCoverage[j][sf]))
-		}
-
-		return 0
+		sf := 10
+		return cmp.Compare(len(deviceCoverage[i][sf]), len(deviceCoverage[j][sf]))
 	})
+
+	//slices.SortFunc(uncoveredDevices, func(i, j device.DeviceId) int {
+	//	for sf := device.MinSF; sf <= device.MaxSF; sf++ {
+	//		if len(deviceCoverage[i][sf]) == 0 && len(deviceCoverage[j][sf]) == 0 {
+	//			continue
+	//		}
+	//
+	//		if len(deviceCoverage[j][sf]) == 0 {
+	//			return -1
+	//		}
+	//
+	//		if len(deviceCoverage[i][sf]) == 0 {
+	//			return 1
+	//		}
+	//
+	//		return cmp.Compare(len(deviceCoverage[i][sf]), len(deviceCoverage[j][sf]))
+	//	}
+	//
+	//	return 0
+	//})
 
 	numSlices := int32(len(problem.devices.Slices()))
 	numUavs := problem.uavPositions.Count()
@@ -916,28 +929,34 @@ func GetUAVSolutionFromDeployedUAVs(problem *UAVProblem, uavs []int32) (*UAVSolu
 	sf := 7
 	uavDevices := make(map[int32]int, len(uavs))
 	for idx, devId := range uncoveredDevices {
-		for len(deviceCoverage[devId][sf]) == 0 {
-			sf++
-			if sf > device.MaxSF {
-				newUav := getFixUAV(devId, uavs, problem)
-				uavs = append(uavs, newUav)
-				for i := idx; i < len(uncoveredDevices); i++ {
-					dev := uncoveredDevices[i]
-					for _, sf := range problem.GetPossibleSFs(dev, newUav) {
-						deviceCoverage[dev][sf] = append(deviceCoverage[dev][sf], newUav)
-					}
-				}
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// USING SF10 FOR ALL DEVICES
+		sf = 10
 
-				sf = 7
-				//panic("Infeasible")
-			}
-		}
+		//for len(deviceCoverage[devId][sf]) == 0 {
+		//	sf++
+		//	if sf > device.MaxSF {
+		//		newUav := getFixUAV(devId, uavs, problem)
+		//		uavs = append(uavs, newUav)
+		//		for i := idx; i < len(uncoveredDevices); i++ {
+		//			dev := uncoveredDevices[i]
+		//			for _, sf := range problem.GetPossibleSFs(dev, newUav) {
+		//				deviceCoverage[dev][sf] = append(deviceCoverage[dev][sf], newUav)
+		//			}
+		//		}
+		//
+		//		sf = 7
+		//		//panic("Infeasible")
+		//	}
+		//}
 
 		slice := problem.GetSlice(devId)
 		selectedUav := int32(-1)
-		for _, uavId := range deviceCoverage[devId][sf] {
+		cover := deviceCoverage[devId][sf]
+		for _, uavId := range cover {
 			key := uavSliceKey{uavId, slice}
-			if sol.uavDatarate[key] > sol.problem.gateway.GetMaxDatarate(slice) {
+			dr := sol.problem.gateway.GetDatarate(int16(sf), slice)
+			if sol.uavDatarate[key]+dr > sol.problem.gateway.GetMaxDatarate(slice) {
 				continue
 			}
 
@@ -959,6 +978,7 @@ func GetUAVSolutionFromDeployedUAVs(problem *UAVProblem, uavs []int32) (*UAVSolu
 			selectedUav = newUav
 			//panic("Infeasible")
 		}
+
 		association := problem.getConfigurationForUAV(devId, selectedUav, int16(sf))
 
 		// Consolidate solution for device
@@ -999,7 +1019,7 @@ func getFixUAV(devId device.DeviceId, deployedUavs []int32, instance *UAVProblem
 	return selected
 }
 
-func Crossover(sol1, sol2 *UAVSolution, cprob, mprob float64) (*UAVSolution, *UAVSolution) {
+func CrossoverOld(sol1, sol2 *UAVSolution, cprob, mprob float64) (*UAVSolution, *UAVSolution) {
 	sol1Copy := sol1.copy()
 	sol2Copy := sol2.copy()
 
@@ -1031,6 +1051,56 @@ func Crossover(sol1, sol2 *UAVSolution, cprob, mprob float64) (*UAVSolution, *UA
 	}
 
 	return sol1Copy, sol2Copy
+}
+
+func Crossover(sol1, sol2 *UAVSolution, cprob, mprob float64) (*UAVSolution, *UAVSolution) {
+	sol1UAVs := sol1.GetDeployedUavsGene()
+	sol2UAVs := sol2.GetDeployedUavsGene()
+
+	uavIDs := sol1.problem.GetUAVIds()
+	numUAVs := int32(len(uavIDs))
+	pivotUAV := int32(rand.Int31n(numUAVs - 1))
+
+	r := rand.Float64()
+	if r > cprob {
+		pivotUAV = numUAVs
+	}
+
+	for uav := int32(0); uav < numUAVs; uav++ {
+		if uav >= pivotUAV {
+			sol1UAVs[uav] = sol2UAVs[uav]
+			sol2UAVs[uav] = sol1UAVs[uav]
+		}
+
+		if shouldMutate(mprob) {
+			//fmt.Printf("--------------------- C1 Mutated ---------------------\n")
+			sol1UAVs[uav] = !sol1UAVs[uav]
+		}
+
+		if shouldMutate(mprob) {
+			//fmt.Printf("--------------------- C2 Mutated ---------------------\n")
+			sol2UAVs[uav] = !sol2UAVs[uav]
+		}
+	}
+
+	deployedUAVs1 := make([]int32, 0)
+	for uavId, deployed := range sol1UAVs {
+		if deployed {
+			deployedUAVs1 = append(deployedUAVs1, int32(uavId))
+		}
+	}
+
+	deployedUAVs2 := make([]int32, 0)
+	for uavId, deployed := range sol2UAVs {
+		if deployed {
+			deployedUAVs2 = append(deployedUAVs2, int32(uavId))
+		}
+	}
+
+	child1, _ := GetUAVSolutionFromDeployedUAVs(sol1.problem, deployedUAVs1)
+	child2, _ := GetUAVSolutionFromDeployedUAVs(sol2.problem, deployedUAVs2)
+
+	return child1, child2
 }
 
 func GetRandomUAVSolutionTabu(problem *UAVProblem, tabuUavs []int32, tabuRatio float32) (*UAVSolution, error) {
@@ -1103,6 +1173,14 @@ func (sol *UAVSolution) mutate(id device.DeviceId, mprob float64) bool {
 	r := rand.Float64()
 	if r < mprob {
 		sol.updateDeviceAssociation(id, sol.problem.getRandomUavConfiguration(id))
+		return true
+	}
+	return false
+}
+
+func shouldMutate(mprob float64) bool {
+	r := rand.Float64()
+	if r < mprob {
 		return true
 	}
 	return false

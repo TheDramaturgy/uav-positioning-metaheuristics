@@ -29,11 +29,11 @@ type GA struct {
 func CreateGASolver(instance problem.Problem, maxGen, populationSize int, crossRate, mutationRate float64) *GA {
 	population := CreatePopulationRandom(instance, populationSize)
 
-	// population := CreatePopulationEmpty()
-	// for i := 0; i < populationSize; i++ {
-	// 	s := CreateGRASPSolver(instance.Copy())
-	// 	population.AddIndividual(s.SolveFast())
-	// }
+	//population := CreatePopulationEmpty()
+	//for i := 0; i < populationSize; i++ {
+	//	s := CreateGRASPSolver(instance.Copy())
+	//	population.AddIndividual(s.SolveFast())
+	//}
 
 	return &GA{
 		problemInstance: instance,
@@ -87,7 +87,7 @@ func (solver *GA) Test() {
 		panic(err)
 	}
 
-	placementFile := cwd + "/output/test_p1_Placement_1s_64x1Gv_80D.dat"
+	placementFile := cwd + "/output/test_p1_Placement_1s_64x1Gv_80D.csv"
 	file, err := os.Create(placementFile)
 	if err != nil {
 		panic(err)
@@ -107,7 +107,28 @@ func (solver *GA) Test() {
 		panic(err)
 	}
 
-	placementFile = cwd + "/output/test_p2_Placement_1s_64x1Gv_80D.dat"
+	// Config Placement
+	configurationFile := cwd + "/output/test_p1_Config_1s_64x1Gv_80D.csv"
+	file, err = os.Create(configurationFile)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = file.WriteString(solver.newPopulation.individuals[0].(*problem.UAVSolution).OutputConfigurations())
+	if err != nil {
+		panic(err)
+	}
+
+	err = file.Sync()
+	if err != nil {
+		panic(err)
+	}
+	err = file.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	placementFile = cwd + "/output/test_p2_Placement_1s_64x1Gv_80D.csv"
 	file, err = os.Create(placementFile)
 	if err != nil {
 		panic(err)
@@ -127,9 +148,30 @@ func (solver *GA) Test() {
 		panic(err)
 	}
 
+	// Config Placement
+	configurationFile = cwd + "/output/test_p2_Config_1s_64x1Gv_80D.csv"
+	file, err = os.Create(configurationFile)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = file.WriteString(solver.newPopulation.individuals[1].(*problem.UAVSolution).OutputConfigurations())
+	if err != nil {
+		panic(err)
+	}
+
+	err = file.Sync()
+	if err != nil {
+		panic(err)
+	}
+	err = file.Close()
+	if err != nil {
+		panic(err)
+	}
+
 	solver.reproduce()
 
-	placementFile = cwd + "/output/test_c1_Placement_1s_64x1Gv_80D.dat"
+	placementFile = cwd + "/output/test_c1_Placement_1s_64x1Gv_80D.csv"
 	file, err = os.Create(placementFile)
 	if err != nil {
 		panic(err)
@@ -149,13 +191,55 @@ func (solver *GA) Test() {
 		panic(err)
 	}
 
-	placementFile = cwd + "/output/test_c2_Placement_1s_64x1Gv_80D.dat"
+	// Config Placement
+	configurationFile = cwd + "/output/test_c1_Config_1s_64x1Gv_80D.csv"
+	file, err = os.Create(configurationFile)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = file.WriteString(solver.newPopulation.individuals[0].(*problem.UAVSolution).OutputConfigurations())
+	if err != nil {
+		panic(err)
+	}
+
+	err = file.Sync()
+	if err != nil {
+		panic(err)
+	}
+	err = file.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	placementFile = cwd + "/output/test_c2_Placement_1s_64x1Gv_80D.csv"
 	file, err = os.Create(placementFile)
 	if err != nil {
 		panic(err)
 	}
 
 	_, err = file.WriteString(solver.newPopulation.individuals[1].(*problem.UAVSolution).OutputGatewayPositions())
+	if err != nil {
+		panic(err)
+	}
+
+	err = file.Sync()
+	if err != nil {
+		panic(err)
+	}
+	err = file.Close()
+	if err != nil {
+		panic(err)
+	}
+
+	// Config Placement
+	configurationFile = cwd + "/output/test_c2_Config_1s_64x1Gv_80D.csv"
+	file, err = os.Create(configurationFile)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = file.WriteString(solver.newPopulation.individuals[1].(*problem.UAVSolution).OutputConfigurations())
 	if err != nil {
 		panic(err)
 	}

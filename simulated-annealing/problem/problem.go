@@ -89,6 +89,7 @@ func (problem *UAVProblem) copy() *UAVProblem {
 
 	problemCopy.configurations = maps.Clone(problem.configurations)
 	problemCopy.possibleConfigurations = maps.Clone(problem.possibleConfigurations)
+	problemCopy.possibleSFs = maps.Clone(problem.possibleSFs)
 	problemCopy.possibleUavs = maps.Clone(problem.possibleUavs)
 	problemCopy.coverageMap = maps.Clone(problem.coverageMap)
 
@@ -116,7 +117,7 @@ func (problem *UAVProblem) GetPossibleConfigs(deviceId device.DeviceId, uavId in
 }
 
 func (problem *UAVProblem) GetPossibleSFs(devId device.DeviceId, uavId int32) []int {
-	return problem.possibleSFs[deviceGatewayAssociation{devId, uavId}]
+	return slices.Clone(problem.possibleSFs[deviceGatewayAssociation{devId, uavId}])
 }
 
 func (problem *UAVProblem) GetCoverage(uavId int32) []device.DeviceId {
