@@ -67,14 +67,14 @@ func (solver *TSSolver) Solve() problem.Solution {
 	solver.problemInstance.SetBestSolution(currSolution)
 
 	for solver.currIteration = 0; solver.currIteration < solver.maxIterations; solver.currIteration++ {
-		fmt.Printf("\n\n==========================\n  starting intensification  \n==========================\n\n")
+		//fmt.Printf("\n\n==========================\n  starting intensification  \n==========================\n\n")
 		solver.intensification()
-		fmt.Printf("\n\n==========================\n  end of intensification  \n==========================\n\n")
+		//fmt.Printf("\n\n==========================\n  end of intensification  \n==========================\n\n")
 
 		if solver.currIteration < solver.maxIterations-1 {
-			fmt.Printf("\n\n==========================\n  starting diversification  \n==========================\n\n")
+			//fmt.Printf("\n\n==========================\n  starting diversification  \n==========================\n\n")
 			solver.diversificationLongTermMemory()
-			fmt.Printf("\n\n==========================\n  end of diversification  \n==========================\n\n")
+			//fmt.Printf("\n\n==========================\n  end of diversification  \n==========================\n\n")
 		}
 	}
 
@@ -94,11 +94,11 @@ func (solver *TSSolver) intensification() {
 		bestCost := solver.problemInstance.GetBestSolution().GetCost()
 
 		checkpoint := time.Since(solver.startTime)
-		tabuListSize := len(solver.tabuList)
+		//tabuListSize := len(solver.tabuList)
 		if candidateSolutionFound {
 			nextCost := nextSolution.GetCost()
-			nextUavTabuRatio := nextSolution.GetUavTabuRatio(solver.tabuUav)
-			fmt.Printf("it: %d | currSolution: %f | nextSolution: %f | tabu: %t | tabuUavRatio: %f | bestSolution: %f | tabuListSize: %d | time: %v\n", solver.currIteration, currCost, nextCost, isTabuMove, nextUavTabuRatio, bestCost, tabuListSize, checkpoint.Seconds())
+			//nextUavTabuRatio := nextSolution.GetUavTabuRatio(solver.tabuUav)
+			//fmt.Printf("it: %d | currSolution: %f | nextSolution: %f | tabu: %t | tabuUavRatio: %f | bestSolution: %f | tabuListSize: %d | time: %v\n", solver.currIteration, currCost, nextCost, isTabuMove, nextUavTabuRatio, bestCost, tabuListSize, checkpoint.Seconds())
 			solver.log.WriteString(fmt.Sprintf("%d,%f,%f,%t,%f,%v\n", solver.currIteration, currCost, nextCost, isTabuMove, bestCost, checkpoint.Seconds()))
 
 			move := nextSolution.GetGeneratingMove()
@@ -119,7 +119,7 @@ func (solver *TSSolver) intensification() {
 			}
 
 		} else {
-			fmt.Printf("it: %d | currSolution: %f | NO MOVE! | bestSolution: %f | tabuListSize: %d | time: %v\n", solver.currIteration, currCost, bestCost, tabuListSize, checkpoint.Seconds())
+			//fmt.Printf("it: %d | currSolution: %f | NO MOVE! | bestSolution: %f | tabuListSize: %d | time: %v\n", solver.currIteration, currCost, bestCost, tabuListSize, checkpoint.Seconds())
 			solver.log.WriteString(fmt.Sprintf("%d,%f,%f,%t,%f,%v\n", solver.currIteration, currCost, -1.0, isTabuMove, bestCost, checkpoint.Seconds()))
 		}
 

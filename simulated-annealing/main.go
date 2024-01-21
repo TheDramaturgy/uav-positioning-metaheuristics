@@ -46,7 +46,7 @@ func main() {
 	}
 
 	// ---------- Create problem instance
-	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.75, 0.0, deviceList, candidatePosList, gw)
+	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.0, 0.0, deviceList, candidatePosList, gw)
 	if err != nil {
 		panic(err)
 	}
@@ -73,9 +73,9 @@ func main() {
 	//}
 
 	filePrefix := "GA"
-	iterations := 25000
+	iterations := 15000
 	population := 50
-	crossRate := 0.7
+	crossRate := 0.6
 	mutationRate := 0.0001
 
 	GASolve(instance, iterations, population, crossRate, mutationRate, filePrefix, seed, numGateways, numDevices)
@@ -83,21 +83,34 @@ func main() {
 }
 
 func GASolve(instance *problem.UAVProblem, it, population int, crossRate, mutationRate float64, prefix, seed, numGateways, numDevices string) {
-	//defer mainWG.Done()
-	s := solver.CreateGASolver(instance, it, population, crossRate, mutationRate)
-	s.Solve()
-
-	// ---------- Save Result
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
 
-	logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
-	placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
-	configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
-	ExportResults(s, instance, logFile, placementFile, configurationFile)
+	logFile := cwd + "/output/" + prefix + "_solutions.dat"
+	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	file.WriteString("TabuIterations,seed,numVirtualPositions,numDevices,numGens,objective\n")
+	for maxIt := 10; maxIt <= 1000; maxIt *= 2 {
+		for i := 0; i < 30; i++ {
+			s := solver.CreateGASolver(instance, it, population, maxIt, crossRate, mutationRate)
+			sol := s.Solve()
+
+			file.WriteString(fmt.Sprintf("%d,%s,%s,%s,%d,%f\n", maxIt, seed, numGateways, numDevices, s.GetCurrentIteration(), sol.GetCost()))
+		}
+	}
+
+	// ---------- Save Result
+
+	//logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
+	//placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	//configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	//ExportResults(s, instance, logFile, placementFile, configurationFile)
 }
 
 func GRASPSolve(deviceList *device.DeviceList, candidatePosList *gateway.CandidatePositionList, gw *gateway.Gateway, seed, numDevices, numGateways string, start, end int) {

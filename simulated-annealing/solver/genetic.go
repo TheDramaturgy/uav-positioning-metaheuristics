@@ -11,39 +11,42 @@ import (
 )
 
 type GA struct {
-	problemInstance problem.Problem
-	oldPopulation   *population
-	newPopulation   *population
-	infeasible      int
-	maxPopulation   int
-	crossRate       float64
-	mutationRate    float64
-	maxGen          int
-	log             strings.Builder
-	lastLog         string
-	wg              *sync.WaitGroup
-	mu              *sync.Mutex
-	startTime       time.Time
+	problemInstance   problem.Problem
+	oldPopulation     *population
+	newPopulation     *population
+	infeasible        int
+	maxPopulation     int
+	crossRate         float64
+	mutationRate      float64
+	maxGen            int
+	iteration         int
+	log               strings.Builder
+	lastLog           string
+	wg                *sync.WaitGroup
+	mu                *sync.Mutex
+	startTime         time.Time
+	maxIterationsTabu int
 }
 
-func CreateGASolver(instance problem.Problem, maxGen, populationSize int, crossRate, mutationRate float64) *GA {
-	population := CreatePopulationRandom(instance, populationSize)
+func CreateGASolver(instance problem.Problem, maxGen, populationSize, maxTabuIterations int, crossRate, mutationRate float64) *GA {
+	//population := CreatePopulationRandom(instance, populationSize)
 
-	//population := CreatePopulationEmpty()
-	//for i := 0; i < populationSize; i++ {
-	//	s := CreateGRASPSolver(instance.Copy())
-	//	population.AddIndividual(s.SolveFast())
-	//}
+	population := CreatePopulationEmpty()
+	for i := 0; i < populationSize; i++ {
+		s := CreateGRASPSolver(instance.Copy())
+		population.AddIndividual(s.SolveFast())
+	}
 
 	return &GA{
-		problemInstance: instance,
-		newPopulation:   population,
-		maxGen:          maxGen,
-		maxPopulation:   populationSize,
-		crossRate:       crossRate,
-		mutationRate:    mutationRate,
-		wg:              &sync.WaitGroup{},
-		mu:              &sync.Mutex{},
+		problemInstance:   instance,
+		newPopulation:     population,
+		maxGen:            maxGen,
+		maxIterationsTabu: maxTabuIterations,
+		maxPopulation:     populationSize,
+		crossRate:         crossRate,
+		mutationRate:      mutationRate,
+		wg:                &sync.WaitGroup{},
+		mu:                &sync.Mutex{},
 	}
 }
 
@@ -53,6 +56,10 @@ func (solver *GA) GetLog() string {
 
 func (solver *GA) GetLastLog() string {
 	return solver.lastLog
+}
+
+func (solver *GA) GetCurrentIteration() int {
+	return solver.iteration
 }
 
 func (solver *GA) Solve() problem.Solution {
@@ -66,18 +73,23 @@ func (solver *GA) Solve() problem.Solution {
 	solver.lastLog = fmt.Sprintf("it: 0 | bestCost: %f | avgCost: %f | infe: %d | Population: %d | time: 0.0\n", solver.newPopulation.minCost, solver.newPopulation.avgCost, solver.infeasible, solver.newPopulation.Size())
 	fmt.Printf(solver.lastLog)
 
-	for i := 1; i <= solver.maxGen; i++ {
+	for solver.iteration = 1; solver.iteration <= solver.maxGen; solver.iteration++ {
 		solver.reproduce()
 		checkpoint := time.Since(solver.startTime)
-		solver.log.WriteString(fmt.Sprintf("%d, %f, %f, %d, %d, %v\n", i, solver.newPopulation.minCost, solver.newPopulation.avgCost, solver.infeasible, solver.newPopulation.Size(), checkpoint.Seconds()))
-		solver.lastLog = fmt.Sprintf("it: %d | bestCost: %f | avgCost: %f | infe: %d | Population: %d | time: %v\n", i, solver.newPopulation.minCost, solver.newPopulation.avgCost, solver.infeasible, solver.newPopulation.Size(), checkpoint.Seconds())
+		solver.log.WriteString(fmt.Sprintf("%d, %f, %f, %d, %d, %v\n", solver.iteration, solver.newPopulation.minCost, solver.newPopulation.avgCost, solver.infeasible, solver.newPopulation.Size(), checkpoint.Seconds()))
+		solver.lastLog = fmt.Sprintf("it: %d | bestCost: %f | avgCost: %f | infe: %d | Population: %d | time: %v\n", solver.iteration, solver.newPopulation.minCost, solver.newPopulation.avgCost, solver.infeasible, solver.newPopulation.Size(), checkpoint.Seconds())
 		fmt.Printf(solver.lastLog)
 
 		if solver.problemInstance.GetBestSolution().GetCost() > solver.newPopulation.GetBestIndividual().GetCost() {
 			solver.problemInstance.SetBestSolution(solver.newPopulation.GetBestIndividual())
 		}
+
+		if checkpoint.Seconds() > 60 {
+			break
+		}
 	}
-	return nil
+
+	return solver.problemInstance.GetBestSolution()
 }
 
 func (solver *GA) Test() {
@@ -269,8 +281,26 @@ func (solver *GA) reproduce() {
 		}
 		go solver.reproduceService(childs, out)
 	}
-
 	solver.wg.Wait()
+
+	bestIndividuals := solver.newPopulation.RemoveBestIndividuals()
+	for idx, _ := range bestIndividuals {
+		individual := bestIndividuals[idx]
+
+		maxIterations := solver.maxIterationsTabu
+		tabuListSize := 25
+		batchSize := 20
+		maxIterationsWithoutEnhancement := maxIterations
+		tabuUavRatio := float32(0.25)
+
+		tabuSolver := CreateTSSolver(maxIterations, batchSize, tabuListSize, maxIterationsWithoutEnhancement, tabuUavRatio, solver.problemInstance.Copy())
+		tabuSolver.problemInstance.SetCurrentSolution(individual)
+		sol := tabuSolver.Solve()
+
+		solver.newPopulation.AddIndividual(sol)
+	}
+
+	solver.newPopulation.UpdateMetrics()
 }
 
 func (solver *GA) reproduceService(numChilds int, out chan problem.Solution) {
