@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -19,7 +18,7 @@ func main() {
 	// ---------- Parse Arguments
 	args := os.Args[1:]
 	seed := args[0]
-	// numDevices := args[1]
+	numDevices := args[1]
 	numGateways := args[2]
 	// prefix := args[3]
 
@@ -29,55 +28,52 @@ func main() {
 		panic(err)
 	}
 
-	for numDevs := 10; numDevs <= 200; numDevs += 10 {
+	devicePositionFile := cwd + "/data/endDevices_LNM_Placement_" + seed + "s+" + numDevices + "d.dat"
+	sliceAssociationFile := cwd + "/data/skl_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	gatewayPositionFile := cwd + "/data/equidistantPlacement_" + numGateways + ".dat"
 
-		devicePositionFile := cwd + "/data/endDevices_LNM_Placement_" + seed + "s+" + strconv.Itoa(numDevs) + "d.dat"
-		sliceAssociationFile := cwd + "/data/skl_" + seed + "s_" + numGateways + "x1Gv_" + strconv.Itoa(numDevs) + "D.dat"
-		gatewayPositionFile := cwd + "/data/equidistantPlacement_" + numGateways + ".dat"
+	// ---------- Load Data
+	deviceList := device.ReadDeviceList(devicePositionFile, sliceAssociationFile)
+	fmt.Printf("Successfully loaded %d devices\n", deviceList.Count())
 
-		// ---------- Load Data
-		deviceList := device.ReadDeviceList(devicePositionFile, sliceAssociationFile)
-		fmt.Printf("Successfully loaded %d devices\n", deviceList.Count())
+	candidatePosList := gateway.ReadCandidatePositionList(gatewayPositionFile)
+	fmt.Printf("Successfully loaded %d candidate positions\n", candidatePosList.Count())
 
-		candidatePosList := gateway.ReadCandidatePositionList(gatewayPositionFile)
-		fmt.Printf("Successfully loaded %d candidate positions\n", candidatePosList.Count())
-
-		gw := &gateway.Gateway{}
-		gw.SetSensitivity(map[int16]float32{7: -130.0, 8: -132.5, 9: -135.0, 10: -137.5, 11: -140.0, 12: -142.5})
-		for slice := range deviceList.Slices() {
-			gw.AddSlice(int32(slice), 125000.0, 15197.75390625)
-		}
-
-		// ---------- Create problem instance
-		// instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.0, 0.0, deviceList, candidatePosList, gw)
-		// if err != nil {
-		// 	panic(err)
-		// }
-
-		// ---------- Solve problem
-		//SASolve(instance)
-		//TSSolve(instance, seed, numDevices, numGateways, prefix)
-
-		GRASPSolve(deviceList, candidatePosList, gw, seed, strconv.Itoa(numDevs), numGateways)
-
-		//for i := 0; i < 30; i++ {
-		//	//prefix := fmt.Sprintf("random%d", i)
-		//	iterations := 25000
-		//	population := 50
-		//	//crossRate := 0.1
-		//	mutationRate := 0.0001
-		//
-		//	GASolve(instance, iterations, population, 0.7, mutationRate, fmt.Sprintf("ga+grasp%d", i), seed, numGateways, numDevices)
-		//}
-
-		// filePrefix := "GA"
-		// iterations := 15000
-		// population := 50
-		// crossRate := 0.6
-		// mutationRate := 0.0001
-
-		// GASolve(instance, iterations, population, crossRate, mutationRate, filePrefix, seed, numGateways, strconv.Itoa(numDevs))
+	gw := &gateway.Gateway{}
+	gw.SetSensitivity(map[int16]float32{7: -130.0, 8: -132.5, 9: -135.0, 10: -137.5, 11: -140.0, 12: -142.5})
+	for slice := range deviceList.Slices() {
+		gw.AddSlice(int32(slice), 125000.0, 15197.75390625)
 	}
+
+	// ---------- Create problem instance
+	instance, err := problem.CreateUAVProblemInstance(100.0, 1.0, 0.0, 0.0, deviceList, candidatePosList, gw)
+	if err != nil {
+		panic(err)
+	}
+
+	// ---------- Solve problem
+	//SASolve(instance)
+	//TSSolve(instance, seed, numDevices, numGateways, prefix)
+
+	//GRASPSolve(deviceList, candidatePosList, gw, seed, strconv.Itoa(numDevs), numGateways)
+
+	//for i := 0; i < 30; i++ {
+	//	//prefix := fmt.Sprintf("random%d", i)
+	//	iterations := 25000
+	//	population := 50
+	//	//crossRate := 0.1
+	//	mutationRate := 0.0001
+	//
+	//	GASolve(instance, iterations, population, 0.7, mutationRate, fmt.Sprintf("ga+grasp%d", i), seed, numGateways, numDevices)
+	//}
+
+	filePrefix := "GA"
+	iterations := 15000
+	population := 50
+	crossRate := 0.6
+	mutationRate := 0.0001
+
+	GASolve(instance, iterations, population, crossRate, mutationRate, filePrefix, seed, numGateways, numDevices)
 
 }
 
@@ -87,27 +83,25 @@ func GASolve(instance *problem.UAVProblem, it, population int, crossRate, mutati
 		panic(err)
 	}
 
-	logFile := cwd + "/output/" + prefix + "_perf_solutions.dat"
-	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
+	//logFile := cwd + "/output/" + prefix + "_perf_solutions.dat"
+	//file, err := os.OpenFile(logFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//defer file.Close()
 
 	// file.WriteString("seed,numVirtualPositions,numDevices,numGens,objective\n")
-	for i := 0; i < 30; i++ {
-		s := solver.CreateGASolver(instance, it, population, 100, crossRate, mutationRate)
-		sol := s.Solve()
+	s := solver.CreateGASolver(instance, it, population, 100, crossRate, mutationRate)
+	s.Solve()
 
-		file.WriteString(fmt.Sprintf("%s,%s,%s,%d,%f,%f\n", seed, numGateways, numDevices, s.GetCurrentIteration(), s.GetBestCostTime(), sol.GetCost()))
-	}
+	//file.WriteString(fmt.Sprintf("%s,%s,%s,%d,%f,%f\n", seed, numGateways, numDevices, s.GetCurrentIteration(), s.GetBestCostTime(), sol.GetCost()))
 
 	// ---------- Save Result
 
-	//logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
-	//placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
-	//configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
-	//ExportResults(s, instance, logFile, placementFile, configurationFile)
+	logFile := cwd + "/output/" + prefix + "_log_" + seed + "s_" + numGateways + "g_" + numDevices + "d.dat"
+	placementFile := cwd + "/output/" + prefix + "_Placement_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	configurationFile := cwd + "/output/" + prefix + "_DevicesConfigurations_" + seed + "s_" + numGateways + "x1Gv_" + numDevices + "D.dat"
+	ExportResults(s, instance, logFile, placementFile, configurationFile)
 }
 
 func GRASPSolve(deviceList *device.DeviceList, candidatePosList *gateway.CandidatePositionList, gw *gateway.Gateway, seed, numDevices, numGateways string) {
