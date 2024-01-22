@@ -638,7 +638,7 @@ func (sol *UAVSolution) GetNeighbourSmarter() *UAVSolution {
 	}
 
 	if maxTies == 0 {
-		panic("No valid movement found")
+		fmt.Errorf("No valid movement found\n")
 	}
 
 	// Fix gateway capacity feasibility

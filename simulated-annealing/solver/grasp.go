@@ -26,6 +26,14 @@ func CreateGRASPSolver(instance problem.Problem) *GRASP {
 	}
 }
 
+func (solver *GRASP) GetCurrentIteration() int {
+	return solver.TabuSolver.GetCurrentIteration()
+}
+
+func (solver *GRASP) GetBestCostTime() float64 {
+	return solver.TabuSolver.GetBestCostTime()
+}
+
 func (solver *GRASP) SolveFast() problem.Solution {
 	solver.startTime = time.Now()
 
@@ -46,7 +54,7 @@ func (solver *GRASP) Solve() problem.Solution {
 }
 
 func (solver *GRASP) localSearch(solution problem.Solution) problem.Solution {
-	maxIterations := 50000
+	maxIterations := 500000
 	tabuListSize := 25
 	batchSize := 20
 	maxIterationsWithoutEnhancement := maxIterations
@@ -96,14 +104,14 @@ func (solver *GRASP) constructGreedyRandomizedSolution() problem.Solution {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 	}
 
-	aux := 0
-	for _, uavId := range solution.GetDeployedUavs() {
-		aux += len(solution.GetDevicesAssignedTo(uavId))
-	}
+	// aux := 0
+	// for _, uavId := range solution.GetDeployedUavs() {
+	// 	aux += len(solution.GetDevicesAssignedTo(uavId))
+	// }
 
-	if aux < 80 {
-		panic("Not enough devices")
-	}
+	// if aux < 80 {
+	// 	panic("Not enough devices")
+	// }
 
 	return solution
 }

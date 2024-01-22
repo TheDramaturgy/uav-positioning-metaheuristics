@@ -25,17 +25,18 @@ type GA struct {
 	wg                *sync.WaitGroup
 	mu                *sync.Mutex
 	startTime         time.Time
+	bestCostTime      float64
 	maxIterationsTabu int
 }
 
 func CreateGASolver(instance problem.Problem, maxGen, populationSize, maxTabuIterations int, crossRate, mutationRate float64) *GA {
-	//population := CreatePopulationRandom(instance, populationSize)
+	population := CreatePopulationRandom(instance, populationSize)
 
-	population := CreatePopulationEmpty()
-	for i := 0; i < populationSize; i++ {
-		s := CreateGRASPSolver(instance.Copy())
-		population.AddIndividual(s.SolveFast())
-	}
+	// population := CreatePopulationEmpty()
+	// for i := 0; i < populationSize; i++ {
+	// 	s := CreateGRASPSolver(instance.Copy())
+	// 	population.AddIndividual(s.SolveFast())
+	// }
 
 	return &GA{
 		problemInstance:   instance,
@@ -56,6 +57,10 @@ func (solver *GA) GetLog() string {
 
 func (solver *GA) GetLastLog() string {
 	return solver.lastLog
+}
+
+func (solver *GA) GetBestCostTime() float64 {
+	return solver.bestCostTime
 }
 
 func (solver *GA) GetCurrentIteration() int {
@@ -82,6 +87,7 @@ func (solver *GA) Solve() problem.Solution {
 
 		if solver.problemInstance.GetBestSolution().GetCost() > solver.newPopulation.GetBestIndividual().GetCost() {
 			solver.problemInstance.SetBestSolution(solver.newPopulation.GetBestIndividual())
+			solver.bestCostTime = checkpoint.Seconds()
 		}
 
 		if checkpoint.Seconds() > 60 {
